@@ -1,18 +1,46 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { LoginScreen } from '../screens/LoginScreen';
-import { RegisterScreen } from '../screens/RegisterScreen';
 import { ContactsScreen } from '../screens/ContactsScreen';
+import { ContactDetailScreen } from '../screens/ContactDetailScreen';
 import { SocialMediaScreen } from '../screens/SocialMediaScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
+import { LoginScreen } from '../screens/LoginScreen';
+import { RegisterScreen } from '../screens/RegisterScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
-import { Loading } from '../components/ui';
 import { useAuth } from '../hooks/useAuth';
+import { RootStackParamList, MainTabParamList, ContactsStackParamList } from '../types/navigation';
+import { Loading } from '../components/ui';
 import { Ionicons } from '@expo/vector-icons';
 
-const Tab = createBottomTabNavigator();
-const Stack = createNativeStackNavigator();
+const Tab = createBottomTabNavigator<MainTabParamList>();
+const Stack = createNativeStackNavigator<RootStackParamList>();
+const ContactsStack = createNativeStackNavigator<ContactsStackParamList>();
+
+function ContactsStackNavigator() {
+  return (
+    <ContactsStack.Navigator>
+      <ContactsStack.Screen 
+        name="ContactsList" 
+        component={ContactsScreen} 
+        options={{ 
+          headerShown: false
+        }} 
+      />
+      <ContactsStack.Screen 
+        name="ContactDetail" 
+        component={ContactDetailScreen} 
+        options={{ 
+          title: 'Contact',
+          headerShadowVisible: false,
+          headerStyle: {
+            backgroundColor: '#fff',
+          },
+        }} 
+      />
+    </ContactsStack.Navigator>
+  );
+}
 
 function MainTabs() {
   return (
@@ -60,18 +88,6 @@ function MainTabs() {
   );
 }
 
-function ContactsStackNavigator() {
-  return (
-    <Stack.Navigator>
-      <Stack.Screen
-        name="ContactsList"
-        component={ContactsScreen}
-        options={{ headerShown: false }}
-      />
-    </Stack.Navigator>
-  );
-}
-
 function ProfileStackNavigator() {
   return (
     <Stack.Navigator>
@@ -97,7 +113,14 @@ export function MainNavigator() {
   }
 
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator 
+      screenOptions={{ 
+        headerShown: false,
+        contentStyle: {
+          backgroundColor: '#fff',
+        },
+      }}
+    >
       {isAuthenticated ? (
         <Stack.Screen name="Main" component={MainTabs} />
       ) : (
