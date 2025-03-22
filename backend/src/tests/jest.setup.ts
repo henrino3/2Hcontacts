@@ -2,7 +2,6 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
 import { User } from '../models/User';
 import { Contact } from '../models/Contact';
-import { SyncLog } from '../models/SyncLog';
 
 let mongoServer: MongoMemoryServer;
 
@@ -15,7 +14,6 @@ beforeAll(async () => {
   await Promise.all([
     User.createIndexes(),
     Contact.createIndexes(),
-    SyncLog.createIndexes(),
   ]);
 });
 

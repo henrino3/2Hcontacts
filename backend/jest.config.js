@@ -2,11 +2,11 @@
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
-  setupFilesAfterEnv: ['<rootDir>/src/tests/jest.setup.ts'],
   testMatch: ['**/__tests__/**/*.test.ts'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
   },
+  setupFilesAfterEnv: ['<rootDir>/src/tests/jest.setup.ts'],
   collectCoverage: true,
   coverageDirectory: 'coverage',
   coverageThreshold: {

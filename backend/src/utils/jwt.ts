@@ -5,7 +5,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const JWT_EXPIRES_IN = '7d'; // Fixed value since we don't need to make it configurable yet
 
 export interface TokenPayload extends JwtPayload {
-  userId: Types.ObjectId;
+  userId: string;
   email: string;
 }
 
