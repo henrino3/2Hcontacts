@@ -5,6 +5,7 @@ import morgan from 'morgan';
 import { rateLimit } from 'express-rate-limit';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
+import authRoutes from './routes/auth';
 
 // Load environment variables
 dotenv.config();
@@ -37,6 +38,8 @@ mongoose.connect(MONGODB_URI)
   });
 
 // Routes
+app.use('/api/auth', authRoutes);
+
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });

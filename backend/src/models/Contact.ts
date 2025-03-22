@@ -27,7 +27,7 @@ export interface IContact extends Document {
   notes?: string;
   category?: string;
   tags: string[];
-  socialProfiles?: ISocialProfiles;
+  socialProfiles: Map<string, string>;
   isFavorite: boolean;
   createdAt: Date;
   updatedAt: Date;
