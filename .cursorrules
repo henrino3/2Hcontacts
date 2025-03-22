@@ -144,4 +144,142 @@ function validateTaskCompletion(markdownContent) {
     ]
   };
 }
+
+/**
+ * Test Coverage Requirements
+ * 
+ * All code changes must include corresponding tests:
+ * 1. Backend:
+ *    - Unit tests for all models (validation, methods, edge cases)
+ *    - Unit tests for utilities and helpers
+ *    - Integration tests for controllers and routes
+ *    - E2E tests for critical user flows
+ *    - Minimum 80% test coverage for new code
+ * 
+ * 2. Frontend:
+ *    - Unit tests for components (props, events, state)
+ *    - Unit tests for hooks and utilities
+ *    - Integration tests for screens and navigation
+ *    - E2E tests for critical user flows
+ *    - Minimum 80% test coverage for new code
+ * 
+ * Test File Structure:
+ * - Place tests next to the code they test
+ * - Name test files with *.test.ts or *.test.tsx extension
+ * - Group related tests in describe blocks
+ * - Use meaningful test descriptions
+ * 
+ * Example:
+ * src/
+ * ├── components/
+ * │   ├── Button.tsx
+ * │   └── Button.test.tsx
+ * ├── utils/
+ * │   ├── format.ts
+ * │   └── format.test.ts
+ * 
+ * Test Description Format:
+ * describe('ComponentName', () => {
+ *   describe('behavior/method', () => {
+ *     it('should expected_behavior when condition', () => {
+ *       // test code
+ *     });
+ *   });
+ * });
+ */
+
+// Function to validate test coverage
+function validateTestCoverage(codeChanges) {
+  return {
+    rules: [
+      {
+        pattern: /^(?!.*\.test\.(ts|tsx)$).*\.(ts|tsx)$/,
+        message: "New or modified code files must have corresponding test files"
+      },
+      {
+        pattern: /describe\(.*\)/,
+        message: "Tests must be organized in describe blocks"
+      },
+      {
+        pattern: /it\(.*\)/,
+        message: "Individual tests must use it blocks with clear descriptions"
+      }
+    ],
+    coverage: {
+      statements: 80,
+      branches: 80,
+      functions: 80,
+      lines: 80
+    }
+  };
+}
+
+## 9. Version Control and GitHub Integration
+
+1. GitHub Push Reminders
+   - After completing major code updates, ask the user if they want to push to GitHub
+   - Major updates include:
+     - Adding new features
+     - Implementing tests
+     - Making significant changes to existing code
+     - Updating project configuration
+     - Adding new dependencies
+
+2. Commit Message Guidelines
+   - Use conventional commit format
+   - Include descriptive messages
+   - Reference related issues or tasks
+   - Example formats:
+     - feat: Add new feature
+     - fix: Fix bug in existing feature
+     - test: Add or update tests
+     - chore: Update configuration or dependencies
+     - docs: Update documentation
+
+3. Branch Management
+   - Confirm current branch before pushing
+   - Suggest creating feature branches for new features
+   - Recommend merging strategies when applicable
+
+4. Code Review Preparation
+   - Summarize changes being pushed
+   - List files modified
+   - Highlight test coverage changes
+   - Note any configuration updates
     
+/**
+ * Task Completion Workflow
+ * 
+ * After completing any task or sub-task:
+ * 1. IMMEDIATELY check the development plan
+ * 2. Mark completed tasks with checkmark (✅)
+ * 3. Commit development plan changes separately
+ * 
+ * Required Steps:
+ * 1. Code Implementation ➡️ Test Implementation ➡️ Mark Tasks Complete
+ *    - Complete code implementation
+ *    - Write and verify tests
+ *    - Check development plan
+ *    - Mark tasks and sub-tasks complete
+ *    - Commit plan updates with "docs:" prefix
+ * 
+ * 2. Task Marking Process
+ *    - Start from innermost sub-tasks
+ *    - Work outward to parent tasks
+ *    - Use exact checkmark emoji: ✅
+ *    - Parent task only marked when ALL sub-tasks complete
+ * 
+ * 3. Commit Process
+ *    - Commit development plan updates BEFORE code commits
+ *    - Use "docs: Update development plan - [task name] ✅"
+ *    - Push immediately after commit
+ * 
+ * Example Workflow:
+ * 1. Complete code task
+ * 2. Write and verify tests
+ * 3. IMMEDIATELY check development plan
+ * 4. Mark tasks complete with ✅
+ * 5. Commit plan update
+ * 6. Push changes
+ * 7. Continue with next task
+ */    
