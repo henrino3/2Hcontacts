@@ -3,6 +3,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ContactsScreen } from '../screens/ContactsScreen';
 import { ContactDetailScreen } from '../screens/ContactDetailScreen';
+import { CreateContactScreen } from '../screens/CreateContactScreen';
 import { SocialMediaScreen } from '../screens/SocialMediaScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { LoginScreen } from '../screens/LoginScreen';
@@ -27,6 +28,11 @@ function ContactsStackNavigator() {
           headerShown: false
         }} 
       />
+      <ContactsStack.Screen
+        name="CreateContact"
+        component={CreateContactScreen}
+        options={{ headerShown: false }}
+      />
       <ContactsStack.Screen 
         name="ContactDetail" 
         component={ContactDetailScreen} 
@@ -47,12 +53,12 @@ function MainTabs() {
     <Tab.Navigator
       screenOptions={{
         tabBarActiveTintColor: '#007AFF',
-        tabBarInactiveTintColor: '#8E8E93',
+        tabBarInactiveTintColor: '#999999',
         tabBarStyle: {
+          borderTopWidth: 1,
           borderTopColor: '#F0F0F0',
-          height: 76,
-          paddingTop: 8,
-          paddingBottom: 16,
+          height: 60,
+          paddingBottom: 8,
         },
         headerShown: false,
       }}
@@ -62,7 +68,7 @@ function MainTabs() {
         component={ContactsStackNavigator}
         options={{
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="people" size={size} color={color} />
+            <Ionicons name="people-outline" size={size} color={color} />
           ),
         }}
       />
@@ -71,16 +77,16 @@ function MainTabs() {
         component={SocialMediaScreen}
         options={{
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="share-social" size={size} color={color} />
+            <Ionicons name="share-social-outline" size={size} color={color} />
           ),
         }}
       />
       <Tab.Screen
         name="Profile"
-        component={ProfileStackNavigator}
+        component={ProfileScreen}
         options={{
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person" size={size} color={color} />
+            <Ionicons name="person-outline" size={size} color={color} />
           ),
         }}
       />
