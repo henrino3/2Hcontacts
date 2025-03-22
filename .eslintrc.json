@@ -1,0 +1,30 @@
+{
+  "root": true,
+  "parser": "@typescript-eslint/parser",
+  "plugins": [
+    "@typescript-eslint",
+    "markdown"
+  ],
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:markdown/recommended"
+  ],
+  "rules": {
+    "markdown/task-list-item-checkbox": [
+      "error",
+      {
+        "checked": {
+          "pattern": "✅$",
+          "message": "Use ✅ at the end of completed tasks"
+        }
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["*.md"],
+      "parser": "markdown-eslint-parser"
+    }
+  ]
+} 
