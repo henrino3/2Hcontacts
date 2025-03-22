@@ -6,6 +6,7 @@ import { rateLimit } from 'express-rate-limit';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import authRoutes from './routes/auth';
+import contactRoutes from './routes/contact.routes';
 
 // Load environment variables
 dotenv.config();
@@ -39,6 +40,7 @@ mongoose.connect(MONGODB_URI)
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/contacts', contactRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
@@ -54,4 +56,6 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
-}); 
+});
+
+export default app; 

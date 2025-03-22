@@ -1,42 +1,92 @@
 import { Request, Response } from 'express';
+import { z } from 'zod';
 import { Contact, IContact } from '../models/Contact';
 import { SyncLog, SyncOperation, SyncStatus } from '../models/SyncLog';
 import { isValidObjectId } from 'mongoose';
 import { SyncService } from '../services/sync.service';
 
+// Validation schemas
+const contactSchema = z.object({
+  firstName: z.string().min(1),
+  lastName: z.string().optional(),
+  email: z.string().email().optional(),
+  phone: z.string().optional(),
+  address: z.object({
+    street: z.string().optional(),
+    city: z.string().optional(),
+    state: z.string().optional(),
+    zipCode: z.string().optional(),
+    country: z.string().optional(),
+  }).optional(),
+  company: z.string().optional(),
+  title: z.string().optional(),
+  notes: z.string().optional(),
+  category: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  isFavorite: z.boolean().optional(),
+});
+
+const searchSchema = z.object({
+  query: z.string().optional(),
+  category: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  page: z.number().int().min(1).optional(),
+  limit: z.number().int().min(1).max(100).optional(),
+});
+
+const syncSchema = z.object({
+  changes: z.array(z.object({
+    operation: z.enum([SyncOperation.CREATE, SyncOperation.UPDATE, SyncOperation.DELETE]),
+    contact: contactSchema.optional(),
+    contactId: z.string().optional(),
+  })),
+});
+
 export class ContactController {
   // List all contacts for the authenticated user
   static async listContacts(req: Request, res: Response) {
     try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 20;
+      const skip = (page - 1) * limit;
+
       const contacts = await Contact.find({ userId: req.user._id })
-        .sort({ lastName: 1, firstName: 1 });
-      
-      res.json(contacts);
+        .sort({ updatedAt: -1 })
+        .skip(skip)
+        .limit(limit);
+
+      const total = await Contact.countDocuments({ userId: req.user._id });
+
+      res.json({
+        contacts,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit),
+        },
+      });
     } catch (error) {
-      res.status(500).json({ message: 'Error fetching contacts' });
+      console.error('Get contacts error:', error);
+      res.status(500).json({ message: 'Failed to get contacts' });
     }
   }
 
   // Create a new contact
   static async createContact(req: Request, res: Response) {
     try {
-      if (!req.body.firstName || !req.body.lastName) {
-        return res.status(400).json({ message: 'First name and last name are required' });
-      }
-
-      const contactData = {
-        ...req.body,
+      const validatedData = contactSchema.parse(req.body);
+      const contact = await Contact.create({
+        ...validatedData,
         userId: req.user._id,
-      };
-
-      const contact = await Contact.create(contactData);
+      });
       res.status(201).json(contact);
     } catch (error) {
-      if (error instanceof Error) {
-        res.status(400).json({ message: error.message });
-      } else {
-        res.status(500).json({ message: 'Error creating contact' });
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Validation error', errors: error.errors });
       }
+      console.error('Create contact error:', error);
+      res.status(500).json({ message: 'Failed to create contact' });
     }
   }
 
@@ -64,34 +114,19 @@ export class ContactController {
 
       res.json(contact);
     } catch (error) {
-      res.status(500).json({ message: 'Error fetching contact' });
+      console.error('Get contact error:', error);
+      res.status(500).json({ message: 'Failed to get contact' });
     }
   }
 
   // Update a contact
   static async updateContact(req: Request, res: Response) {
     try {
-      const { id } = req.params;
-
-      if (!id) {
-        return res.status(400).json({ message: 'Contact ID is required' });
-      }
-
-      if (!isValidObjectId(id)) {
-        return res.status(400).json({ message: 'Invalid contact ID' });
-      }
-
-      if (Object.keys(req.body).length === 0) {
-        return res.status(400).json({ message: 'No update data provided' });
-      }
-
+      const validatedData = contactSchema.partial().parse(req.body);
       const contact = await Contact.findOneAndUpdate(
-        {
-          _id: id,
-          userId: req.user._id,
-        },
-        req.body,
-        { new: true, runValidators: true }
+        { _id: req.params.id, userId: req.user._id },
+        validatedData,
+        { new: true }
       );
 
       if (!contact) {
@@ -100,11 +135,11 @@ export class ContactController {
 
       res.json(contact);
     } catch (error) {
-      if (error instanceof Error) {
-        res.status(400).json({ message: error.message });
-      } else {
-        res.status(500).json({ message: 'Error updating contact' });
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Validation error', errors: error.errors });
       }
+      console.error('Update contact error:', error);
+      res.status(500).json({ message: 'Failed to update contact' });
     }
   }
 
@@ -132,166 +167,110 @@ export class ContactController {
 
       res.status(204).send();
     } catch (error) {
-      res.status(500).json({ message: 'Error deleting contact' });
+      console.error('Delete contact error:', error);
+      res.status(500).json({ message: 'Failed to delete contact' });
     }
   }
 
   // Search contacts
   static async searchContacts(req: Request, res: Response) {
     try {
-      const { query, category, tags } = req.query;
-      const searchQuery: any = { userId: req.user._id };
+      const { query, category, tags, page = 1, limit = 20 } = searchSchema.parse(req.query);
+      const skip = (page - 1) * limit;
 
-      // Text search across name and email fields
+      const filter: any = { userId: req.user._id };
+
       if (query) {
-        searchQuery.$or = [
+        filter.$or = [
           { firstName: { $regex: query, $options: 'i' } },
           { lastName: { $regex: query, $options: 'i' } },
           { email: { $regex: query, $options: 'i' } },
+          { company: { $regex: query, $options: 'i' } },
         ];
       }
 
-      // Filter by category
       if (category) {
-        searchQuery.category = category;
+        filter.category = category;
       }
 
-      // Filter by tags
-      if (tags) {
-        const tagArray = Array.isArray(tags) ? tags : [tags];
-        searchQuery.tags = { $all: tagArray };
+      if (tags && tags.length > 0) {
+        filter.tags = { $all: tags };
       }
 
-      const contacts = await Contact.find(searchQuery)
-        .sort({ lastName: 1, firstName: 1 });
+      const contacts = await Contact.find(filter)
+        .sort({ updatedAt: -1 })
+        .skip(skip)
+        .limit(limit);
 
-      res.json(contacts);
+      const total = await Contact.countDocuments(filter);
+
+      res.json({
+        contacts,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit),
+        },
+      });
     } catch (error) {
-      res.status(500).json({ message: 'Error searching contacts' });
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Validation error', errors: error.errors });
+      }
+      console.error('Search contacts error:', error);
+      res.status(500).json({ message: 'Failed to search contacts' });
     }
   }
 
   // Get sync status
   static async getSyncStatus(req: Request, res: Response) {
     try {
-      const pendingSync = await SyncLog.find({
+      const pendingSyncs = await SyncLog.find({
         userId: req.user._id,
-        status: SyncStatus.PENDING,
+        status: { $in: [SyncStatus.PENDING, SyncStatus.CONFLICT] },
       }).sort({ timestamp: 1 });
 
-      res.json({
-        pendingChanges: pendingSync.length,
-        items: pendingSync,
-      });
+      res.json(pendingSyncs);
     } catch (error) {
-      res.status(500).json({ message: 'Error fetching sync status' });
+      console.error('Get sync status error:', error);
+      res.status(500).json({ message: 'Failed to get sync status' });
     }
   }
 
   // Sync contacts
   static async syncContacts(req: Request, res: Response) {
     try {
-      const { changes } = req.body;
+      const { changes } = syncSchema.parse(req.body);
 
-      if (!Array.isArray(changes)) {
-        return res.status(400).json({ message: 'Changes must be an array' });
-      }
-
-      const syncResults = [];
-      const errors = [];
-
-      for (const change of changes) {
-        try {
-          const { operation, contactId, data } = change;
-
-          // Validate operation
-          if (!Object.values(SyncOperation).includes(operation)) {
-            throw new Error(`Invalid operation: ${operation}`);
-          }
-
-          // Create sync log entry
+      // Create sync logs for each change
+      const syncLogs = await Promise.all(
+        changes.map(async (change) => {
           const syncLog = await SyncLog.create({
             userId: req.user._id,
-            operation,
-            entityId: contactId,
-            entityType: 'Contact',
-            status: SyncStatus.PENDING,
-            conflictData: {
-              localVersion: data,
-            },
-          });
-
-          // Process sync immediately
-          try {
-            switch (operation) {
-              case SyncOperation.CREATE:
-                await SyncService.processCreate(syncLog);
-                break;
-
-              case SyncOperation.UPDATE:
-                // Check for conflicts
-                if (contactId) {
-                  const conflict = await SyncService.detectConflicts(
-                    req.user._id,
-                    contactId,
-                    data
-                  );
-
-                  if (conflict) {
-                    syncLog.status = SyncStatus.CONFLICT;
-                    syncLog.conflictData = conflict;
-                    await syncLog.save();
-                    
-                    syncResults.push({
-                      operation,
-                      contactId,
-                      status: 'conflict',
-                      conflicts: conflict.conflictFields,
-                    });
-                    continue;
-                  }
-                }
-                await SyncService.processUpdate(syncLog);
-                break;
-
-              case SyncOperation.DELETE:
-                await SyncService.processDelete(syncLog);
-                break;
-            }
-
-            syncResults.push({
-              operation,
-              contactId: syncLog.entityId,
-              status: 'completed',
-            });
-          } catch (error) {
-            syncLog.retryCount += 1;
-            if (syncLog.retryCount >= 3) {
-              syncLog.status = SyncStatus.FAILED;
-            }
-            await syncLog.save();
-
-            throw error;
-          }
-        } catch (error) {
-          errors.push({
             operation: change.operation,
-            contactId: change.contactId,
-            error: error instanceof Error ? error.message : 'Unknown error',
+            entityId: change.contactId,
+            entityType: 'Contact',
+            timestamp: new Date(),
+            status: SyncStatus.PENDING,
+            conflictData: change.contact ? { localVersion: change.contact } : undefined,
           });
-        }
-      }
 
-      // Process any remaining pending syncs in the background
-      SyncService.processPendingSyncs(req.user._id).catch(console.error);
+          return syncLog;
+        })
+      );
 
-      res.json({
-        success: errors.length === 0,
-        results: syncResults,
-        errors,
+      // Process syncs in background
+      SyncService.processPendingSyncs(req.user._id).catch((error) => {
+        console.error('Background sync processing error:', error);
       });
+
+      res.json(syncLogs);
     } catch (error) {
-      res.status(500).json({ message: 'Error syncing contacts' });
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Validation error', errors: error.errors });
+      }
+      console.error('Sync contacts error:', error);
+      res.status(500).json({ message: 'Failed to sync contacts' });
     }
   }
 

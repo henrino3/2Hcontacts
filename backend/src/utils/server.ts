@@ -2,6 +2,7 @@ import express, { Express } from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import contactRoutes from '../routes/contact.routes';
+import authRoutes from '../routes/auth.routes';
 
 export async function createServer(): Promise<Express> {
   const app = express();
@@ -11,15 +12,17 @@ export async function createServer(): Promise<Express> {
   app.use(express.json());
 
   // Routes
+  app.use('/api/auth', authRoutes);
   app.use('/api/contacts', contactRoutes);
 
   // Connect to test database
-  if (!process.env.MONGODB_URI) {
-    process.env.MONGODB_URI = 'mongodb://localhost:27017/hcontacts_test';
-  }
-
-  if (mongoose.connection.readyState === 0) {
-    await mongoose.connect(process.env.MONGODB_URI);
+  const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/hcontacts_test';
+  try {
+    await mongoose.connect(mongoUri);
+    console.log('Connected to MongoDB test database');
+  } catch (error) {
+    console.error('MongoDB connection error:', error);
+    throw error;
   }
 
   return app;
