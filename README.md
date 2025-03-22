@@ -41,7 +41,7 @@ A comprehensive contact management solution built with React Native and Node.js,
 
 1. Clone the repository
 ```bash
-git clone https://github.com/yourusername/hcontacts.git
+git clone https://github.com/henrino3/Hcontacts.git
 cd hcontacts
 ```
 
