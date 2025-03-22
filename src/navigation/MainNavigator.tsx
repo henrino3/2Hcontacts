@@ -2,49 +2,89 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ContactsScreen } from '../screens/ContactsScreen';
-import { ContactDetailScreen } from '../screens/ContactDetailScreen';
 import { CreateContactScreen } from '../screens/CreateContactScreen';
+import { ContactDetailScreen } from '../screens/ContactDetailScreen';
+import { EditContactScreen } from '../screens/EditContactScreen';
 import { SocialMediaScreen } from '../screens/SocialMediaScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { LoginScreen } from '../screens/LoginScreen';
 import { RegisterScreen } from '../screens/RegisterScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { useAuth } from '../hooks/useAuth';
-import { RootStackParamList, MainTabParamList, ContactsStackParamList } from '../types/navigation';
 import { Loading } from '../components/ui';
 import { Ionicons } from '@expo/vector-icons';
+import { Contact } from '../services/api/dummyData';
+
+export type RootStackParamList = {
+  Main: undefined;
+  Login: undefined;
+  Register: undefined;
+};
+
+export type MainTabParamList = {
+  Contacts: undefined;
+  Social: undefined;
+  Profile: undefined;
+};
+
+export type ContactsStackParamList = {
+  ContactsList: undefined;
+  CreateContact: undefined;
+  ContactDetail: { contact: Contact };
+  EditContact: { contact: Contact };
+};
+
+export type ProfileStackParamList = {
+  ProfileMain: undefined;
+  Settings: undefined;
+};
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const ContactsStack = createNativeStackNavigator<ContactsStackParamList>();
+const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
 
 function ContactsStackNavigator() {
   return (
     <ContactsStack.Navigator>
       <ContactsStack.Screen 
         name="ContactsList" 
-        component={ContactsScreen} 
-        options={{ 
-          headerShown: false
-        }} 
+        component={ContactsScreen}
+        options={{ headerShown: false }}
       />
       <ContactsStack.Screen
         name="CreateContact"
         component={CreateContactScreen}
         options={{ headerShown: false }}
       />
-      <ContactsStack.Screen 
-        name="ContactDetail" 
-        component={ContactDetailScreen} 
-        options={{ 
-          title: 'Contact',
-          headerShadowVisible: false,
-          headerStyle: {
-            backgroundColor: '#fff',
-          },
-        }} 
+      <ContactsStack.Screen
+        name="ContactDetail"
+        component={ContactDetailScreen}
+        options={{ headerShown: false }}
+      />
+      <ContactsStack.Screen
+        name="EditContact"
+        component={EditContactScreen}
+        options={{ headerShown: false }}
       />
     </ContactsStack.Navigator>
+  );
+}
+
+function ProfileStackNavigator() {
+  return (
+    <ProfileStack.Navigator>
+      <ProfileStack.Screen
+        name="ProfileMain"
+        component={ProfileScreen}
+        options={{ headerShown: false }}
+      />
+      <ProfileStack.Screen
+        name="Settings"
+        component={SettingsScreen}
+        options={{ headerShown: false }}
+      />
+    </ProfileStack.Navigator>
   );
 }
 
@@ -83,7 +123,7 @@ function MainTabs() {
       />
       <Tab.Screen
         name="Profile"
-        component={ProfileScreen}
+        component={ProfileStackNavigator}
         options={{
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person-outline" size={size} color={color} />
@@ -91,23 +131,6 @@ function MainTabs() {
         }}
       />
     </Tab.Navigator>
-  );
-}
-
-function ProfileStackNavigator() {
-  return (
-    <Stack.Navigator>
-      <Stack.Screen
-        name="ProfileMain"
-        component={ProfileScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="Settings"
-        component={SettingsScreen}
-        options={{ headerShown: false }}
-      />
-    </Stack.Navigator>
   );
 }
 
