@@ -26,10 +26,9 @@ export interface Contact {
   category?: string;
   tags?: string[];
   socialProfiles?: {
-    twitter?: string;
     linkedin?: string;
-    facebook?: string;
     instagram?: string;
+    x?: string;
   };
   isFavorite: boolean;
   createdAt: string;

@@ -18,7 +18,6 @@ export function ContactDetailScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const route = useRoute<ContactDetailRouteProp>();
   const { contact } = route.params;
-  const [isEditing, setIsEditing] = useState(false);
 
   const handleEdit = () => {
     navigation.navigate('EditContact', { contact });
@@ -50,9 +49,10 @@ export function ContactDetailScreen() {
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="chevron-back" size={24} color="#007AFF" />
+          <Text style={styles.backButtonText}>Contacts</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={handleEdit} style={styles.editButton}>
-          <Text style={styles.editButtonText} weight="semibold">Edit</Text>
+          <Text style={styles.editButtonText}>Edit</Text>
         </TouchableOpacity>
       </View>
 
@@ -63,81 +63,76 @@ export function ContactDetailScreen() {
               {contact.firstName[0]}{contact.lastName[0]}
             </Text>
           </View>
-          <Text style={styles.name} weight="bold">
+          <Text style={styles.name} weight="semibold">
             {contact.firstName} {contact.lastName}
           </Text>
-          <Text style={styles.title}>
-            {contact.title} at {contact.company}
-          </Text>
+          {(contact.title || contact.company) && (
+            <Text style={styles.subtitle}>
+              {[contact.title, contact.company].filter(Boolean).join(' at ')}
+            </Text>
+          )}
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle} weight="semibold">Contact Info</Text>
-          
           <TouchableOpacity style={styles.infoItem}>
             <View style={styles.infoIcon}>
-              <Ionicons name="mail-outline" size={20} color="#666" />
+              <Ionicons name="mail-outline" size={20} color="#007AFF" />
             </View>
             <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Email</Text>
               <Text style={styles.infoValue}>{contact.email}</Text>
+              <Text style={styles.infoLabel}>Email</Text>
             </View>
+            <Ionicons name="chevron-forward" size={20} color="#C7C7CC" />
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.infoItem}>
             <View style={styles.infoIcon}>
-              <Ionicons name="call-outline" size={20} color="#666" />
+              <Ionicons name="call-outline" size={20} color="#007AFF" />
             </View>
             <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Phone</Text>
               <Text style={styles.infoValue}>{contact.phone}</Text>
+              <Text style={styles.infoLabel}>Phone</Text>
             </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.infoItem}>
-            <View style={styles.infoIcon}>
-              <Ionicons name="business-outline" size={20} color="#666" />
-            </View>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Company</Text>
-              <Text style={styles.infoValue}>{contact.company}</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.infoItem}>
-            <View style={styles.infoIcon}>
-              <Ionicons name="briefcase-outline" size={20} color="#666" />
-            </View>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Job Title</Text>
-              <Text style={styles.infoValue}>{contact.title}</Text>
-            </View>
+            <Ionicons name="chevron-forward" size={20} color="#C7C7CC" />
           </TouchableOpacity>
         </View>
 
-        {contact.socialProfiles && (
+        {contact.socialProfiles && Object.keys(contact.socialProfiles).length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle} weight="semibold">Social Profiles</Text>
             {contact.socialProfiles.linkedin && (
               <TouchableOpacity style={styles.infoItem}>
                 <View style={styles.infoIcon}>
                   <Ionicons name="logo-linkedin" size={20} color="#0077B5" />
                 </View>
                 <View style={styles.infoContent}>
-                  <Text style={styles.infoLabel}>LinkedIn</Text>
                   <Text style={styles.infoValue}>{contact.socialProfiles.linkedin}</Text>
+                  <Text style={styles.infoLabel}>LinkedIn</Text>
                 </View>
+                <Ionicons name="chevron-forward" size={20} color="#C7C7CC" />
               </TouchableOpacity>
             )}
-            {contact.socialProfiles.twitter && (
+            {contact.socialProfiles.instagram && (
               <TouchableOpacity style={styles.infoItem}>
                 <View style={styles.infoIcon}>
-                  <Ionicons name="logo-twitter" size={20} color="#1DA1F2" />
+                  <Ionicons name="logo-instagram" size={20} color="#E4405F" />
                 </View>
                 <View style={styles.infoContent}>
-                  <Text style={styles.infoLabel}>Twitter</Text>
-                  <Text style={styles.infoValue}>{contact.socialProfiles.twitter}</Text>
+                  <Text style={styles.infoValue}>{contact.socialProfiles.instagram}</Text>
+                  <Text style={styles.infoLabel}>Instagram</Text>
                 </View>
+                <Ionicons name="chevron-forward" size={20} color="#C7C7CC" />
+              </TouchableOpacity>
+            )}
+            {contact.socialProfiles.x && (
+              <TouchableOpacity style={styles.infoItem}>
+                <View style={styles.infoIcon}>
+                  <Ionicons name="logo-twitter" size={20} color="#000000" />
+                </View>
+                <View style={styles.infoContent}>
+                  <Text style={styles.infoValue}>{contact.socialProfiles.x}</Text>
+                  <Text style={styles.infoLabel}>X (Twitter)</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#C7C7CC" />
               </TouchableOpacity>
             )}
           </View>
@@ -157,7 +152,7 @@ export function ContactDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#F2F2F7',
   },
   header: {
     flexDirection: 'row',
@@ -165,20 +160,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    backgroundColor: '#F2F2F7',
   },
   backButton: {
-    padding: 8,
-    marginLeft: -8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  backButtonText: {
+    fontSize: 17,
+    color: '#007AFF',
   },
   editButton: {
     padding: 8,
-    marginRight: -8,
   },
   editButtonText: {
     color: '#007AFF',
-    fontSize: 16,
+    fontSize: 17,
   },
   content: {
     flex: 1,
@@ -186,80 +184,83 @@ const styles = StyleSheet.create({
   profileSection: {
     alignItems: 'center',
     paddingVertical: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    backgroundColor: '#F2F2F7',
   },
   avatarContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     backgroundColor: '#E3F2FF',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
   },
   avatarText: {
-    fontSize: 32,
+    fontSize: 36,
     fontWeight: '600',
     color: '#007AFF',
   },
   name: {
-    fontSize: 24,
+    fontSize: 28,
     marginBottom: 4,
+    color: '#000000',
   },
-  title: {
-    fontSize: 16,
-    color: '#666',
+  subtitle: {
+    fontSize: 17,
+    color: '#666666',
   },
   section: {
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-  },
-  sectionTitle: {
-    fontSize: 14,
-    color: '#666',
-    textTransform: 'uppercase',
-    marginBottom: 12,
+    marginTop: 16,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 0.5,
+    borderBottomWidth: 0.5,
+    borderColor: '#C6C6C8',
   },
   infoItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    minHeight: 44,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#C6C6C8',
   },
   infoIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#F8F8F8',
+    width: 29,
+    height: 29,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
   infoContent: {
     flex: 1,
+    justifyContent: 'center',
   },
   infoLabel: {
     fontSize: 12,
-    color: '#666',
-    marginBottom: 2,
+    color: '#666666',
+    marginTop: 2,
   },
   infoValue: {
-    fontSize: 16,
+    fontSize: 17,
+    color: '#000000',
   },
   deleteButton: {
-    marginTop: 24,
+    marginTop: 32,
     marginBottom: 32,
     marginHorizontal: 16,
-    padding: 16,
-    borderRadius: 8,
-    backgroundColor: '#FFF1F0',
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 0.5,
+    borderColor: '#C6C6C8',
   },
   deleteButtonText: {
     color: '#FF3B30',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '400',
   },
 }); 

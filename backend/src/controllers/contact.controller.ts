@@ -23,6 +23,11 @@ const contactSchema = z.object({
   notes: z.string().optional(),
   category: z.string().optional(),
   tags: z.array(z.string()).optional(),
+  socialProfiles: z.object({
+    linkedin: z.string().url().optional(),
+    instagram: z.string().url().optional(),
+    x: z.string().url().optional(),
+  }).optional(),
   isFavorite: z.boolean().optional(),
 });
 

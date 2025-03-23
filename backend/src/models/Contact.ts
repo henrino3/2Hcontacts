@@ -10,8 +10,8 @@ interface IAddress {
 
 interface ISocialProfiles {
   linkedin?: string;
-  facebook?: string;
-  twitter?: string;
+  instagram?: string;
+  x?: string;
   [key: string]: string | undefined;
 }
 

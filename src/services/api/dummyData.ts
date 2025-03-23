@@ -14,7 +14,8 @@ export interface Contact {
   profilePicture?: string;
   socialProfiles?: {
     linkedin?: string;
-    twitter?: string;
+    instagram?: string;
+    x?: string;
   };
 }
 
@@ -37,6 +38,11 @@ export const useContactStore = create<ContactStore>((set) => ({
       isFavorite: true,
       category: 'Work',
       tags: ['developer', 'tech'],
+      socialProfiles: {
+        linkedin: 'johnsmith',
+        x: '@johnsmith',
+        instagram: '@johnsmith.dev'
+      }
     },
     {
       id: '2',

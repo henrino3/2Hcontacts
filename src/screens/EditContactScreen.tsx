@@ -21,6 +21,11 @@ type EditContactForm = {
   title: string;
   email: string;
   phone: string;
+  socialProfiles: {
+    linkedin: string;
+    instagram: string;
+    x: string;
+  };
 };
 
 export function EditContactScreen() {
@@ -36,6 +41,11 @@ export function EditContactScreen() {
     title: contact.title,
     email: contact.email,
     phone: contact.phone,
+    socialProfiles: {
+      linkedin: contact.socialProfiles?.linkedin || '',
+      instagram: contact.socialProfiles?.instagram || '',
+      x: contact.socialProfiles?.x || '',
+    },
   });
 
   const handleSave = () => {
@@ -55,6 +65,16 @@ export function EditContactScreen() {
 
   const updateForm = (field: keyof EditContactForm, value: string) => {
     setForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const updateSocialProfile = (platform: keyof EditContactForm['socialProfiles'], value: string) => {
+    setForm(prev => ({
+      ...prev,
+      socialProfiles: {
+        ...prev.socialProfiles,
+        [platform]: value,
+      },
+    }));
   };
 
   return (
@@ -129,6 +149,34 @@ export function EditContactScreen() {
               value={form.phone}
               onChangeText={(value) => updateForm('phone', value)}
               keyboardType="phone-pad"
+            />
+          </View>
+
+          <View style={[styles.section, styles.inputGroup]}>
+            <Text style={styles.sectionTitle} weight="semibold">Social Profiles</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="LinkedIn Profile"
+              value={form.socialProfiles.linkedin}
+              onChangeText={(value) => updateSocialProfile('linkedin', value)}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Instagram Profile"
+              value={form.socialProfiles.instagram}
+              onChangeText={(value) => updateSocialProfile('instagram', value)}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="X (Twitter) Profile"
+              value={form.socialProfiles.x}
+              onChangeText={(value) => updateSocialProfile('x', value)}
+              autoCapitalize="none"
+              autoCorrect={false}
             />
           </View>
         </View>
@@ -207,5 +255,14 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 12,
     fontSize: 16,
+  },
+  section: {
+    marginTop: 24,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    color: '#666',
+    textTransform: 'uppercase',
+    marginBottom: 12,
   },
 }); 

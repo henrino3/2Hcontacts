@@ -13,6 +13,11 @@ type CreateContactForm = {
   title: string;
   email: string;
   phone: string;
+  socialProfiles: {
+    linkedin: string;
+    instagram: string;
+    x: string;
+  };
 };
 
 export function CreateContactScreen() {
@@ -24,6 +29,11 @@ export function CreateContactScreen() {
     title: '',
     email: '',
     phone: '',
+    socialProfiles: {
+      linkedin: '',
+      instagram: '',
+      x: '',
+    },
   });
 
   const handleSave = () => {
@@ -33,6 +43,16 @@ export function CreateContactScreen() {
 
   const updateForm = (field: keyof CreateContactForm, value: string) => {
     setForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const updateSocialProfile = (platform: keyof CreateContactForm['socialProfiles'], value: string) => {
+    setForm(prev => ({
+      ...prev,
+      socialProfiles: {
+        ...prev.socialProfiles,
+        [platform]: value,
+      },
+    }));
   };
 
   return (
@@ -107,6 +127,34 @@ export function CreateContactScreen() {
               keyboardType="phone-pad"
             />
           </View>
+
+          <View style={[styles.section, styles.inputGroup]}>
+            <Text style={styles.sectionTitle} weight="semibold">Social Profiles</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="LinkedIn Profile"
+              value={form.socialProfiles.linkedin}
+              onChangeText={(value) => updateSocialProfile('linkedin', value)}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Instagram Profile"
+              value={form.socialProfiles.instagram}
+              onChangeText={(value) => updateSocialProfile('instagram', value)}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="X (Twitter) Profile"
+              value={form.socialProfiles.x}
+              onChangeText={(value) => updateSocialProfile('x', value)}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -178,5 +226,14 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 12,
     fontSize: 16,
+  },
+  section: {
+    marginTop: 24,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    color: '#666',
+    textTransform: 'uppercase',
+    marginBottom: 12,
   },
 }); 
