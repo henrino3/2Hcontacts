@@ -5,7 +5,7 @@ import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import session from 'express-session';
 import authRoutes from './routes/auth';
-import contactRoutes from './routes/contacts';
+import contactRoutes from './routes/contact.routes';
 import socialMediaRoutes from './routes/socialMedia';
 
 const app = express();

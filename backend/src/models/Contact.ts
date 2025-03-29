@@ -108,4 +108,12 @@ contactSchema.index({ userId: 1, phone: 1 });
 contactSchema.index({ userId: 1, tags: 1 });
 contactSchema.index({ userId: 1, category: 1 });
 
+// Update lastSyncedAt on save
+contactSchema.pre('save', function(next) {
+  if (this.isModified()) {
+    this.lastSyncedAt = new Date();
+  }
+  next();
+});
+
 export const Contact = model<IContact>('Contact', contactSchema); 

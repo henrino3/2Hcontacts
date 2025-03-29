@@ -1,23 +1,21 @@
 import { Request, Response } from 'express';
 import { socialMediaService } from '../services/SocialMediaService';
-import { generateRandomString } from '../utils/crypto';
+import { SupportedPlatform } from '../types/social-media';
 
 export class SocialMediaController {
   async initiateAuth(req: Request, res: Response) {
     try {
       const { platform } = req.params;
-      const userId = req.user.id;
+      const state = Math.random().toString(36).substring(7);
 
-      // Generate state parameter for CSRF protection
-      const state = generateRandomString(32);
+      const authUrl = await socialMediaService.getAuthUrl(platform as SupportedPlatform, state);
+
+      // Store state in session for validation during callback
       req.session.oauthState = state;
-      req.session.userId = userId;
 
-      const authUrl = await socialMediaService.getAuthorizationUrl(platform, state);
       res.json({ authUrl });
     } catch (error) {
-      console.error('Error initiating auth:', error);
-      res.status(500).json({ error: 'Failed to initiate authentication' });
+      res.status(400).json({ error: (error as Error).message });
     }
   }
 
@@ -25,27 +23,45 @@ export class SocialMediaController {
     try {
       const { platform } = req.params;
       const { code, state } = req.query;
-      const storedState = req.session.oauthState;
-      const userId = req.session.userId;
 
-      if (!code || !state || !storedState || state !== storedState) {
-        return res.status(400).json({ error: 'Invalid OAuth callback' });
+      // Validate state to prevent CSRF
+      if (!state || state !== req.session.oauthState) {
+        return res.status(400).json({ error: 'Invalid state parameter' });
       }
 
-      const connection = await socialMediaService.handleOAuthCallback(
+      // Clear state from session
+      delete req.session.oauthState;
+
+      const { access_token } = await socialMediaService.handleCallback(platform as SupportedPlatform, code as string);
+
+      // Store the access token securely (e.g., in the database)
+      await socialMediaService.connectSocialMedia(platform as SupportedPlatform, req.user?._id.toString() || '', access_token);
+
+      res.json({ success: true });
+    } catch (error) {
+      res.status(400).json({ error: (error as Error).message });
+    }
+  }
+
+  async connect(req: Request, res: Response) {
+    try {
+      const { platform } = req.params;
+      const { accessToken } = req.body;
+      const userId = req.user?._id;
+
+      if (!userId) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+
+      const connection = await socialMediaService.connectSocialMedia(
+        userId.toString(),
         platform,
-        code as string,
-        userId
+        accessToken
       );
 
-      // Clear OAuth state from session
-      delete req.session.oauthState;
-      delete req.session.userId;
-
-      res.json({ success: true, connection });
+      res.json(connection);
     } catch (error) {
-      console.error('Error handling OAuth callback:', error);
-      res.status(500).json({ error: 'Failed to complete authentication' });
+      res.status(500).json({ error: 'Failed to connect social media account' });
     }
   }
 
@@ -63,12 +79,15 @@ export class SocialMediaController {
   async disconnectPlatform(req: Request, res: Response) {
     try {
       const { platform } = req.params;
-      const userId = req.user.id;
+      const userId = req.user?._id;
 
-      await socialMediaService.disconnectPlatform(userId, platform);
+      if (!userId) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+
+      await socialMediaService.disconnectPlatform(userId.toString(), platform);
       res.json({ success: true });
     } catch (error) {
-      console.error('Error disconnecting platform:', error);
       res.status(500).json({ error: 'Failed to disconnect platform' });
     }
   }

@@ -1,15 +1,25 @@
-import { Schema, model } from 'mongoose';
+import mongoose, { Document, Model, Types } from 'mongoose';
 import bcrypt from 'bcrypt';
+import { UserRole } from '../types/auth';
 
 export interface IUser {
+  _id: Types.ObjectId;
   email: string;
   password: string;
   name: string;
+  role: UserRole;
+  profilePicture?: string;
   createdAt: Date;
   updatedAt: Date;
 }
 
-const userSchema = new Schema<IUser>(
+export interface IUserMethods {
+  comparePassword(candidatePassword: string): Promise<boolean>;
+}
+
+export type UserDocument = Document<unknown, {}, IUser> & IUser & IUserMethods;
+
+const userSchema = new mongoose.Schema<UserDocument>(
   {
     email: {
       type: String,
@@ -28,13 +38,20 @@ const userSchema = new Schema<IUser>(
       required: true,
       trim: true,
     },
+    role: {
+      type: String,
+      enum: Object.values(UserRole),
+      default: UserRole.USER,
+    },
+    profilePicture: {
+      type: String,
+    },
   },
   {
     timestamps: true,
   }
 );
 
-// Hash password before saving
 userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) {
     return next();
@@ -49,4 +66,12 @@ userSchema.pre('save', async function (next) {
   }
 });
 
-export const User = model<IUser>('User', userSchema); 
+userSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {
+  try {
+    return await bcrypt.compare(candidatePassword, this.password);
+  } catch (error) {
+    throw new Error('Password comparison failed');
+  }
+};
+
+export const User = mongoose.model<UserDocument>('User', userSchema); 

@@ -4,8 +4,10 @@ import { Express } from 'express';
 import { createServer } from '../../utils/server';
 import { Contact, IContact } from '../../models/Contact';
 import { User, IUser } from '../../models/User';
-import { generateToken } from '../../utils/jwt';
+import { UserRole } from '../../types/auth';
+import { generateToken, TokenPayload } from '../../utils/jwt';
 import { SyncLog, ISyncLog, SyncOperation, SyncStatus } from '../../models/SyncLog';
+import { Request, Response } from 'express';
 
 interface IUserDocument extends Document, IUser {
   _id: Types.ObjectId;
@@ -22,26 +24,31 @@ interface ISyncLogDocument extends Document, ISyncLog {
 describe('Contact Routes', () => {
   let app: Express;
   let authToken: string;
-  let testUser: IUserDocument;
+  let testUser: { _id: Types.ObjectId; email: string; name: string };
 
   beforeAll(async () => {
     app = await createServer();
   });
 
   beforeEach(async () => {
-    // Create test user
-    testUser = await User.create({
+    testUser = {
+      _id: new Types.ObjectId(),
       email: 'test@example.com',
-      password: 'password123',
       name: 'Test User',
-    }) as IUserDocument;
+    };
 
-    // Generate auth token
-    authToken = generateToken({
-      userId: testUser._id.toString(),
-      email: testUser.email,
-      iat: Math.floor(Date.now() / 1000),
+    await User.create({
+      ...testUser,
+      password: 'password123',
     });
+
+    const tokenPayload: TokenPayload = {
+      userId: testUser._id,
+      email: testUser.email,
+      role: UserRole.USER,
+    };
+
+    authToken = generateToken(tokenPayload);
 
     // Clear contacts and sync logs
     await Contact.deleteMany({});

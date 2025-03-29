@@ -18,11 +18,20 @@ export interface ISyncLog extends Document {
   operation: SyncOperation;
   entityId: Types.ObjectId;
   entityType: string;
-  timestamp: Date;
-  syncedAt?: Date;
   status: SyncStatus;
-  conflictData?: any;
   retryCount: number;
+  error?: string;
+  completedAt?: Date;
+  failedAt?: Date;
+  lastRetryAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+  syncedAt?: Date;
+  timestamp: Date;
+  conflictData?: {
+    localVersion: any;
+    serverVersion: any;
+  };
 }
 
 const syncLogSchema = new Schema<ISyncLog>({
@@ -45,32 +54,58 @@ const syncLogSchema = new Schema<ISyncLog>({
     type: String,
     required: true,
   },
-  timestamp: {
-    type: Date,
-    default: Date.now,
-  },
-  syncedAt: {
-    type: Date,
-  },
   status: {
     type: String,
     enum: Object.values(SyncStatus),
     default: SyncStatus.PENDING,
   },
-  conflictData: {
-    type: Schema.Types.Mixed,
-  },
   retryCount: {
     type: Number,
     default: 0,
+  },
+  error: String,
+  completedAt: Date,
+  failedAt: Date,
+  lastRetryAt: Date,
+  syncedAt: Date,
+  timestamp: {
+    type: Date,
+    default: Date.now,
+    index: true,
+  },
+  conflictData: {
+    type: {
+      localVersion: Schema.Types.Mixed,
+      serverVersion: Schema.Types.Mixed,
+    },
+    required: false,
   },
 }, {
   timestamps: true,
 });
 
-// Indexes for better query performance
+// Add indexes for better query performance
 syncLogSchema.index({ userId: 1, status: 1 });
 syncLogSchema.index({ userId: 1, entityType: 1, entityId: 1 });
-syncLogSchema.index({ timestamp: 1 });
+
+// Update timestamps on status changes
+syncLogSchema.pre('save', function(next) {
+  if (this.isModified('status')) {
+    switch (this.status) {
+      case SyncStatus.COMPLETED:
+        this.completedAt = new Date();
+        break;
+      case SyncStatus.FAILED:
+        this.failedAt = new Date();
+        break;
+      case SyncStatus.PENDING:
+        if (this.isModified('retryCount')) {
+          this.lastRetryAt = new Date();
+        }
+        break;
+    }
+  }
+  next();
+});
 
 export const SyncLog = model<ISyncLog>('SyncLog', syncLogSchema); 

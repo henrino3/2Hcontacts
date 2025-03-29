@@ -13,23 +13,36 @@ declare global {
 
 export async function authenticate(req: Request, res: Response, next: NextFunction) {
   try {
-    // Extract token from header
-    const token = extractTokenFromHeader(req.headers.authorization);
-    
-    // Verify token
-    const decoded = verifyToken(token);
-    
-    // Find user
-    const user = await User.findById(decoded.userId).select('-password');
-    if (!user) {
-      return res.status(401).json({ message: 'User not found' });
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader) {
+      return res.status(401).json({ message: 'No token provided' });
     }
-    
-    // Attach user to request
-    req.user = user;
-    next();
+
+    const [type, token] = authHeader.split(' ');
+
+    if (type !== 'Bearer' || !token) {
+      return res.status(401).json({ message: 'Invalid token format' });
+    }
+
+    try {
+      const decoded = verifyToken(token);
+      // Set the user ID for use in controllers
+      req.user = {
+        _id: decoded.userId,
+        email: decoded.email,
+        role: decoded.role,
+      };
+      next();
+    } catch (error) {
+      if (error instanceof Error && error.name === 'TokenExpiredError') {
+        return res.status(401).json({ message: 'Token expired' });
+      }
+      throw error;
+    }
   } catch (error) {
-    return res.status(401).json({ message: 'Authentication failed' });
+    console.error('Authentication error:', error);
+    res.status(401).json({ message: 'Authentication failed' });
   }
 }
 

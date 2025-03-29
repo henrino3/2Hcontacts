@@ -1,8 +1,12 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
-export interface ISocialMediaConnection extends Document {
+interface ISocialMediaConnectionMethods {
+  updateProfileData(profileData: Partial<ISocialMediaConnectionDoc['profileData']>): Promise<ISocialMediaConnectionDoc>;
+}
+
+export interface ISocialMediaConnectionDoc extends Document {
   userId: mongoose.Types.ObjectId;
-  platform: string;
+  platform: 'facebook' | 'twitter' | 'linkedin' | 'instagram' | 'google';
   platformUserId: string;
   accessToken: string;
   refreshToken?: string;
@@ -17,8 +21,9 @@ export interface ISocialMediaConnection extends Document {
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
-  save(): Promise<ISocialMediaConnection>;
 }
+
+export type ISocialMediaConnection = ISocialMediaConnectionDoc & ISocialMediaConnectionMethods;
 
 const socialMediaConnectionSchema = new Schema({
   userId: {
@@ -30,7 +35,7 @@ const socialMediaConnectionSchema = new Schema({
   platform: {
     type: String,
     required: true,
-    enum: ['facebook', 'twitter', 'linkedin', 'instagram'],
+    enum: ['facebook', 'twitter', 'linkedin', 'instagram', 'google'],
     index: true
   },
   platformUserId: {
@@ -80,7 +85,10 @@ const socialMediaConnectionSchema = new Schema({
 socialMediaConnectionSchema.index({ userId: 1, platform: 1 }, { unique: true });
 
 // Method to update profile data
-socialMediaConnectionSchema.methods.updateProfileData = async function(profileData: Partial<ISocialMediaConnection['profileData']>) {
+socialMediaConnectionSchema.methods.updateProfileData = async function(
+  this: ISocialMediaConnection,
+  profileData: Partial<ISocialMediaConnectionDoc['profileData']>
+): Promise<ISocialMediaConnection> {
   this.profileData = { ...this.profileData, ...profileData };
   this.lastSyncedAt = new Date();
   return this.save();

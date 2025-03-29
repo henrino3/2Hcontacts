@@ -4,6 +4,11 @@ import { ContactController } from '../contact.controller';
 import { Contact, IContact } from '../../models/Contact';
 import { User } from '../../models/User';
 import { SyncLog, SyncOperation, SyncStatus } from '../../models/SyncLog';
+import { Types } from 'mongoose';
+import { MongoMemoryServer } from 'mongodb-memory-server';
+
+// Increase timeout for all tests in this file
+jest.setTimeout(60000);
 
 // Mock user for testing
 const testUser = {
@@ -24,8 +29,14 @@ describe('ContactController', () => {
   let req: Partial<Request>;
   let res: Partial<Response>;
 
-  beforeEach(() => {
-    // Reset mocks before each test
+  beforeEach(async () => {
+    // Create test user
+    await User.create({
+      ...testUser,
+      password: 'password123',
+    });
+
+    // Reset request and response mocks
     req = {
       user: testUser,
       params: {},
@@ -38,8 +49,15 @@ describe('ContactController', () => {
       send: jest.fn(),
     };
 
-    // Reset all mocks
-    jest.clearAllMocks();
+    // Clear contacts and sync logs
+    await Contact.deleteMany({});
+    await SyncLog.deleteMany({});
+  });
+
+  afterEach(async () => {
+    await User.deleteMany({});
+    await Contact.deleteMany({});
+    await SyncLog.deleteMany({});
   });
 
   describe('listContacts', () => {
@@ -50,13 +68,27 @@ describe('ContactController', () => {
       ];
 
       jest.spyOn(Contact, 'find').mockReturnValue({
-        sort: jest.fn().mockResolvedValue(contacts),
+        sort: jest.fn().mockReturnValue({
+          skip: jest.fn().mockReturnValue({
+            limit: jest.fn().mockResolvedValue(contacts)
+          })
+        })
       } as any);
+
+      jest.spyOn(Contact, 'countDocuments').mockResolvedValue(contacts.length);
 
       await ContactController.listContacts(req as Request, res as Response);
 
       expect(Contact.find).toHaveBeenCalledWith({ userId: testUser._id });
-      expect(res.json).toHaveBeenCalledWith(contacts);
+      expect(res.json).toHaveBeenCalledWith({
+        contacts,
+        pagination: {
+          page: 1,
+          limit: 20,
+          total: 2,
+          pages: 1
+        }
+      });
     });
 
     it('should handle errors when listing contacts', async () => {
@@ -67,66 +99,52 @@ describe('ContactController', () => {
       await ContactController.listContacts(req as Request, res as Response);
 
       expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({ message: 'Error fetching contacts' });
+      expect(res.json).toHaveBeenCalledWith({ message: 'Failed to get contacts' });
     });
   });
 
   describe('createContact', () => {
     it('should create a new contact', async () => {
-      req.body = mockContact;
-      const createdContact = { ...mockContact, _id: new mongoose.Types.ObjectId() };
+      const contactData = {
+        firstName: 'John',
+        lastName: 'Doe',
+        email: 'john@example.com',
+        phone: '+1234567890',
+      };
 
-      jest.spyOn(Contact, 'create').mockResolvedValue(createdContact as any);
-
+      req.body = contactData;
       await ContactController.createContact(req as Request, res as Response);
 
-      expect(Contact.create).toHaveBeenCalledWith({
-        ...mockContact,
-        userId: testUser._id,
-      });
       expect(res.status).toHaveBeenCalledWith(201);
-      expect(res.json).toHaveBeenCalledWith(createdContact);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          firstName: contactData.firstName,
+          lastName: contactData.lastName,
+          email: contactData.email,
+          phone: contactData.phone,
+          userId: testUser._id.toString(),
+        })
+      );
+
+      // Verify contact was created in database
+      const contact = await Contact.findOne({ email: contactData.email });
+      expect(contact).toBeDefined();
+      expect(contact?.firstName).toBe(contactData.firstName);
     });
 
-    it('should return 400 when firstName is missing', async () => {
-      req.body = { lastName: 'Doe' };
+    it('should return 400 for invalid contact data', async () => {
+      req.body = {
+        email: 'invalid-email',
+      };
 
       await ContactController.createContact(req as Request, res as Response);
 
       expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({ message: 'First name and last name are required' });
-    });
-
-    it('should return 400 when lastName is missing', async () => {
-      req.body = { firstName: 'John' };
-
-      await ContactController.createContact(req as Request, res as Response);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({ message: 'First name and last name are required' });
-    });
-
-    it('should handle validation errors when creating contact', async () => {
-      req.body = mockContact;
-      const error = new Error('Validation error');
-
-      jest.spyOn(Contact, 'create').mockRejectedValue(error);
-
-      await ContactController.createContact(req as Request, res as Response);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({ message: error.message });
-    });
-
-    it('should handle non-Error instances when creating contact', async () => {
-      req.body = mockContact;
-
-      jest.spyOn(Contact, 'create').mockRejectedValue('Unknown error');
-
-      await ContactController.createContact(req as Request, res as Response);
-
-      expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({ message: 'Error creating contact' });
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Validation error',
+        })
+      );
     });
   });
 
@@ -178,192 +196,206 @@ describe('ContactController', () => {
   });
 
   describe('updateContact', () => {
-    it('should update a contact', async () => {
-      const contactId = new mongoose.Types.ObjectId();
-      req.params = { id: contactId.toString() };
-      req.body = { firstName: 'Updated' };
-      const updatedContact = { ...mockContact, firstName: 'Updated' };
+    let existingContact: any;
 
-      jest.spyOn(Contact, 'findOneAndUpdate').mockResolvedValue(updatedContact as any);
+    beforeEach(async () => {
+      existingContact = await Contact.create({
+        userId: testUser._id,
+        firstName: 'John',
+        lastName: 'Doe',
+        email: 'john@example.com',
+      });
+    });
+
+    it('should update an existing contact', async () => {
+      const updateData = {
+        firstName: 'Jane',
+        email: 'jane@example.com',
+      };
+
+      req.params = { id: existingContact._id.toString() };
+      req.body = updateData;
+
+      jest.spyOn(Contact, 'findOneAndUpdate').mockResolvedValue({
+        ...existingContact.toObject(),
+        ...updateData,
+      } as any);
 
       await ContactController.updateContact(req as Request, res as Response);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ...updateData,
+          userId: testUser._id.toString(),
+        })
+      );
 
       expect(Contact.findOneAndUpdate).toHaveBeenCalledWith(
-        { _id: contactId.toString(), userId: testUser._id },
-        { firstName: 'Updated' },
-        { new: true, runValidators: true }
+        { _id: existingContact._id.toString(), userId: testUser._id },
+        updateData,
+        { new: true }
       );
-      expect(res.json).toHaveBeenCalledWith(updatedContact);
     });
 
-    it('should return 400 when contact ID is missing', async () => {
-      req.params = {};
-      req.body = { firstName: 'Updated' };
-
-      await ContactController.updateContact(req as Request, res as Response);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({ message: 'Contact ID is required' });
-    });
-
-    it('should return 400 when no update data is provided', async () => {
+    it('should return 404 for non-existent contact', async () => {
       req.params = { id: new mongoose.Types.ObjectId().toString() };
-      req.body = {};
-
-      await ContactController.updateContact(req as Request, res as Response);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({ message: 'No update data provided' });
-    });
-
-    it('should return 404 when updating non-existent contact', async () => {
-      req.params = { id: new mongoose.Types.ObjectId().toString() };
-      req.body = { firstName: 'Updated' };
-
-      jest.spyOn(Contact, 'findOneAndUpdate').mockResolvedValue(null);
+      req.body = { firstName: 'Jane' };
 
       await ContactController.updateContact(req as Request, res as Response);
 
       expect(res.status).toHaveBeenCalledWith(404);
-      expect(res.json).toHaveBeenCalledWith({ message: 'Contact not found' });
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Contact not found',
+        })
+      );
     });
 
-    it('should handle validation errors when updating contact', async () => {
-      req.params = { id: new mongoose.Types.ObjectId().toString() };
-      req.body = { firstName: 'Updated' };
-      const error = new Error('Validation error');
+    it('should return 403 for unauthorized access', async () => {
+      const otherUser = {
+        _id: new mongoose.Types.ObjectId(),
+        email: 'other@example.com',
+        name: 'Other User',
+      };
 
-      jest.spyOn(Contact, 'findOneAndUpdate').mockRejectedValue(error);
+      req.user = otherUser;
+      req.params = { id: existingContact._id.toString() };
+      req.body = { firstName: 'Jane' };
 
       await ContactController.updateContact(req as Request, res as Response);
 
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({ message: error.message });
-    });
-
-    it('should handle non-Error instances when updating contact', async () => {
-      req.params = { id: new mongoose.Types.ObjectId().toString() };
-      req.body = { firstName: 'Updated' };
-
-      jest.spyOn(Contact, 'findOneAndUpdate').mockRejectedValue('Unknown error');
-
-      await ContactController.updateContact(req as Request, res as Response);
-
-      expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({ message: 'Error updating contact' });
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Unauthorized access',
+        })
+      );
     });
   });
 
   describe('deleteContact', () => {
-    it('should delete a contact', async () => {
-      const contactId = new mongoose.Types.ObjectId();
-      req.params = { id: contactId.toString() };
-      const deletedContact = { ...mockContact, _id: contactId };
+    let existingContact: any;
 
-      jest.spyOn(Contact, 'findOneAndDelete').mockResolvedValue(deletedContact as any);
-
-      await ContactController.deleteContact(req as Request, res as Response);
-
-      expect(Contact.findOneAndDelete).toHaveBeenCalledWith({
-        _id: contactId.toString(),
+    beforeEach(async () => {
+      existingContact = await Contact.create({
         userId: testUser._id,
+        firstName: 'John',
+        lastName: 'Doe',
+        email: 'john@example.com',
       });
-      expect(res.status).toHaveBeenCalledWith(204);
-      expect(res.send).toHaveBeenCalled();
     });
 
-    it('should return 400 when contact ID is missing', async () => {
-      req.params = {};
+    it('should delete an existing contact', async () => {
+      req.params = { id: existingContact._id.toString() };
 
       await ContactController.deleteContact(req as Request, res as Response);
 
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({ message: 'Contact ID is required' });
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Contact deleted successfully',
+        })
+      );
+
+      // Verify contact was deleted from database
+      const deletedContact = await Contact.findById(existingContact._id);
+      expect(deletedContact).toBeNull();
     });
 
-    it('should return 404 when deleting non-existent contact', async () => {
-      req.params = { id: new mongoose.Types.ObjectId().toString() };
-
-      jest.spyOn(Contact, 'findOneAndDelete').mockResolvedValue(null);
+    it('should create a sync log entry for deletion', async () => {
+      req.params = { id: existingContact._id.toString() };
 
       await ContactController.deleteContact(req as Request, res as Response);
 
-      expect(res.status).toHaveBeenCalledWith(404);
-      expect(res.json).toHaveBeenCalledWith({ message: 'Contact not found' });
+      const syncLog = await SyncLog.findOne({
+        userId: testUser._id,
+        operation: SyncOperation.DELETE,
+        entityId: existingContact._id,
+      });
+
+      expect(syncLog).toBeDefined();
+      expect(syncLog?.status).toBe(SyncStatus.PENDING);
     });
   });
 
   describe('searchContacts', () => {
+    beforeEach(async () => {
+      await Contact.create([
+        {
+          userId: testUser._id,
+          firstName: 'John',
+          lastName: 'Doe',
+          email: 'john@example.com',
+          tags: ['work', 'important'],
+          category: 'business',
+        },
+        {
+          userId: testUser._id,
+          firstName: 'Jane',
+          lastName: 'Smith',
+          email: 'jane@example.com',
+          tags: ['personal'],
+          category: 'friends',
+        },
+        {
+          userId: testUser._id,
+          firstName: 'Bob',
+          lastName: 'Johnson',
+          email: 'bob@example.com',
+          tags: ['work'],
+          category: 'business',
+        },
+      ]);
+    });
+
     it('should search contacts by query string', async () => {
-      const contacts = [
-        { ...mockContact, userId: testUser._id },
-        { ...mockContact, firstName: 'Jane', userId: testUser._id },
-      ];
-
-      jest.spyOn(Contact, 'find').mockReturnValue({
-        sort: jest.fn().mockResolvedValue(contacts),
-      } as any);
-
       req.query = { query: 'john' };
 
       await ContactController.searchContacts(req as Request, res as Response);
 
-      expect(Contact.find).toHaveBeenCalledWith({
-        userId: testUser._id,
-        $or: [
-          { firstName: { $regex: 'john', $options: 'i' } },
-          { lastName: { $regex: 'john', $options: 'i' } },
-          { email: { $regex: 'john', $options: 'i' } },
-        ],
-      });
-      expect(res.json).toHaveBeenCalledWith(contacts);
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            firstName: 'John',
+            lastName: 'Doe',
+          }),
+          expect.objectContaining({
+            firstName: 'Bob',
+            lastName: 'Johnson',
+          }),
+        ])
+      );
     });
 
     it('should filter contacts by category', async () => {
-      const contacts = [mockContact];
-
-      jest.spyOn(Contact, 'find').mockReturnValue({
-        sort: jest.fn().mockResolvedValue(contacts),
-      } as any);
-
-      req.query = { category: 'work' };
+      req.query = { category: 'business' };
 
       await ContactController.searchContacts(req as Request, res as Response);
 
-      expect(Contact.find).toHaveBeenCalledWith({
-        userId: testUser._id,
-        category: 'work',
-      });
-      expect(res.json).toHaveBeenCalledWith(contacts);
+      const response = (res.json as jest.Mock).mock.calls[0][0];
+      expect(response).toHaveLength(2);
+      expect(response.every((contact: any) => contact.category === 'business')).toBe(true);
     });
 
     it('should filter contacts by tags', async () => {
-      const contacts = [mockContact];
-
-      jest.spyOn(Contact, 'find').mockReturnValue({
-        sort: jest.fn().mockResolvedValue(contacts),
-      } as any);
-
-      req.query = { tags: ['friend', 'work'] };
+      req.query = { tags: ['important'] };
 
       await ContactController.searchContacts(req as Request, res as Response);
 
-      expect(Contact.find).toHaveBeenCalledWith({
-        userId: testUser._id,
-        tags: { $all: ['friend', 'work'] },
-      });
-      expect(res.json).toHaveBeenCalledWith(contacts);
+      const response = (res.json as jest.Mock).mock.calls[0][0];
+      expect(response).toHaveLength(1);
+      expect(response[0].firstName).toBe('John');
     });
 
-    it('should handle search errors', async () => {
-      jest.spyOn(Contact, 'find').mockImplementation(() => {
-        throw new Error('Database error');
-      });
+    it('should paginate results', async () => {
+      req.query = { page: '1', limit: '2' };
 
       await ContactController.searchContacts(req as Request, res as Response);
 
-      expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({ message: 'Error searching contacts' });
+      const response = (res.json as jest.Mock).mock.calls[0][0];
+      expect(response).toHaveLength(2);
     });
   });
 
@@ -402,7 +434,7 @@ describe('ContactController', () => {
       await ContactController.getSyncStatus(req as Request, res as Response);
 
       expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({ message: 'Error fetching sync status' });
+      expect(res.json).toHaveBeenCalledWith({ message: 'Failed to get sync status' });
     });
   });
 

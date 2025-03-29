@@ -1,40 +1,36 @@
-import mongoose from 'mongoose';
-import { MongoMemoryServer } from 'mongodb-memory-server';
-import { SocialMediaConnection, ISocialMediaConnection } from '../SocialMediaConnection';
-import { User } from '../User';
+import mongoose, { Types, Document } from 'mongoose';
+import { SocialMediaConnection } from '../SocialMediaConnection';
+import { User, IUser } from '../User';
+import { clearDatabase } from '../../test/globals';
 
-let mongoServer: MongoMemoryServer;
+interface IUserDocument extends Document, IUser {
+  _id: Types.ObjectId;
+}
 
-beforeAll(async () => {
-  mongoServer = await MongoMemoryServer.create();
-  const mongoUri = mongoServer.getUri();
-  await mongoose.connect(mongoUri);
-});
-
-afterAll(async () => {
-  await mongoose.disconnect();
-  await mongoServer.stop();
-});
+// Increase test timeout
+jest.setTimeout(60000);
 
 describe('SocialMediaConnection Model', () => {
-  let userId: mongoose.Types.ObjectId;
-
-  beforeAll(async () => {
-    const user = await User.create({
-      email: 'test@example.com',
-      password: 'password123',
-      name: 'Test User'
-    });
-    userId = user._id;
-  });
+  let testUser: { _id: Types.ObjectId; email: string; name: string };
 
   beforeEach(async () => {
-    await SocialMediaConnection.deleteMany({});
+    await clearDatabase();
+
+    testUser = {
+      _id: new Types.ObjectId(),
+      email: 'test@example.com',
+      name: 'Test User',
+    };
+
+    await User.create({
+      ...testUser,
+      password: 'password123',
+    });
   });
 
   it('should create a social media connection successfully', async () => {
     const connection = await SocialMediaConnection.create({
-      userId,
+      userId: testUser._id,
       platform: 'twitter',
       platformUserId: '123456',
       accessToken: 'test-token',
@@ -53,7 +49,7 @@ describe('SocialMediaConnection Model', () => {
 
   it('should not allow duplicate platform connections for the same user', async () => {
     await SocialMediaConnection.create({
-      userId,
+      userId: testUser._id,
       platform: 'twitter',
       platformUserId: '123456',
       accessToken: 'test-token',
@@ -65,7 +61,7 @@ describe('SocialMediaConnection Model', () => {
     });
 
     await expect(SocialMediaConnection.create({
-      userId,
+      userId: testUser._id,
       platform: 'twitter',
       platformUserId: '789012',
       accessToken: 'another-token',
@@ -79,7 +75,7 @@ describe('SocialMediaConnection Model', () => {
 
   it('should update profile data successfully', async () => {
     const connection = await SocialMediaConnection.create({
-      userId,
+      userId: testUser._id,
       platform: 'twitter',
       platformUserId: '123456',
       accessToken: 'test-token',
@@ -107,7 +103,7 @@ describe('SocialMediaConnection Model', () => {
 
   it('should require all mandatory fields', async () => {
     const invalidConnection = new SocialMediaConnection({
-      userId,
+      userId: testUser._id,
       platform: 'twitter'
       // Missing other required fields
     });
@@ -117,7 +113,7 @@ describe('SocialMediaConnection Model', () => {
 
   it('should only allow valid platform values', async () => {
     const invalidConnection = new SocialMediaConnection({
-      userId,
+      userId: testUser._id,
       platform: 'invalid-platform',
       platformUserId: '123456',
       accessToken: 'test-token',

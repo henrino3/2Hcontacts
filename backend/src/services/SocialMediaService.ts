@@ -1,6 +1,8 @@
 import axios from 'axios';
+import { Types } from 'mongoose';
 import { SocialMediaConnection, ISocialMediaConnection } from '../models/SocialMediaConnection';
 import { User } from '../models/User';
+import { SupportedPlatform } from '../types/social-media';
 
 interface OAuthConfig {
   clientId: string;
@@ -10,15 +12,15 @@ interface OAuthConfig {
 }
 
 interface PlatformConfig {
-  [key: string]: {
-    authUrl: string;
-    tokenUrl: string;
-    profileUrl: string;
-    oauth: OAuthConfig;
-  };
+  authUrl: string;
+  tokenUrl: string;
+  profileUrl: string;
+  oauth: OAuthConfig;
 }
 
-const platformConfig: PlatformConfig = {
+type PlatformConfigs = Record<SupportedPlatform, PlatformConfig>;
+
+const platformConfigs: PlatformConfigs = {
   twitter: {
     authUrl: 'https://twitter.com/i/oauth2/authorize',
     tokenUrl: 'https://api.twitter.com/2/oauth2/token',
@@ -26,8 +28,8 @@ const platformConfig: PlatformConfig = {
     oauth: {
       clientId: process.env.TWITTER_CLIENT_ID || '',
       clientSecret: process.env.TWITTER_CLIENT_SECRET || '',
-      redirectUri: `${process.env.API_BASE_URL}/auth/twitter/callback`,
-      scope: ['tweet.read', 'users.read', 'offline.access']
+      redirectUri: process.env.TWITTER_REDIRECT_URI || '',
+      scope: ['tweet.read', 'users.read']
     }
   },
   linkedin: {
@@ -37,99 +39,140 @@ const platformConfig: PlatformConfig = {
     oauth: {
       clientId: process.env.LINKEDIN_CLIENT_ID || '',
       clientSecret: process.env.LINKEDIN_CLIENT_SECRET || '',
-      redirectUri: `${process.env.API_BASE_URL}/auth/linkedin/callback`,
-      scope: ['r_liteprofile', 'r_emailaddress', 'w_member_social']
+      redirectUri: process.env.LINKEDIN_REDIRECT_URI || '',
+      scope: ['r_liteprofile', 'r_emailaddress']
     }
   }
 };
 
 class SocialMediaService {
-  async getAuthorizationUrl(platform: string, state: string): Promise<string> {
-    const config = platformConfig[platform];
+  private platformConfigs: PlatformConfigs = platformConfigs;
+
+  async getAuthUrl(platform: SupportedPlatform, state: string): Promise<string> {
+    const config = this.platformConfigs[platform];
     if (!config) {
       throw new Error(`Unsupported platform: ${platform}`);
     }
 
+    if (!config.oauth.clientId || !config.oauth.redirectUri) {
+      throw new Error('Missing required configuration');
+    }
+
     const params = new URLSearchParams({
+      response_type: 'code',
       client_id: config.oauth.clientId,
       redirect_uri: config.oauth.redirectUri,
-      scope: config.oauth.scope.join(' '),
-      response_type: 'code',
-      state
+      state,
+      scope: config.oauth.scope.join(' ')
     });
 
     return `${config.authUrl}?${params.toString()}`;
   }
 
-  async handleOAuthCallback(platform: string, code: string, userId: string): Promise<ISocialMediaConnection> {
-    const config = platformConfig[platform];
+  async handleCallback(platform: SupportedPlatform, code: string): Promise<{ access_token: string }> {
+    const config = this.platformConfigs[platform];
     if (!config) {
       throw new Error(`Unsupported platform: ${platform}`);
     }
 
-    // Exchange code for tokens
-    const tokenResponse = await axios.post(config.tokenUrl, {
-      client_id: config.oauth.clientId,
-      client_secret: config.oauth.clientSecret,
-      code,
+    if (!config.oauth.clientId || !config.oauth.clientSecret || !config.oauth.redirectUri) {
+      throw new Error('Missing required configuration');
+    }
+
+    const params = new URLSearchParams({
       grant_type: 'authorization_code',
-      redirect_uri: config.oauth.redirectUri
+      code,
+      redirect_uri: config.oauth.redirectUri,
+      client_id: config.oauth.clientId,
+      client_secret: config.oauth.clientSecret
     });
 
-    const { access_token, refresh_token, expires_in } = tokenResponse.data;
-
-    // Get user profile from platform
-    const profileResponse = await axios.get(config.profileUrl, {
+    const response = await fetch(config.tokenUrl, {
+      method: 'POST',
       headers: {
-        Authorization: `Bearer ${access_token}`
-      }
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: params.toString()
     });
 
-    const profileData = await this.normalizeProfileData(platform, profileResponse.data);
+    if (!response.ok) {
+      throw new Error(`Failed to exchange code for token: ${response.statusText}`);
+    }
 
-    // Save or update connection
-    const connection = await SocialMediaConnection.findOneAndUpdate(
-      { userId, platform },
-      {
-        platformUserId: profileData.platformUserId,
-        accessToken: access_token,
-        refreshToken: refresh_token,
-        tokenExpiresAt: expires_in ? new Date(Date.now() + expires_in * 1000) : undefined,
-        profileData: {
-          username: profileData.username,
-          displayName: profileData.displayName,
-          profileUrl: profileData.profileUrl,
-          avatarUrl: profileData.avatarUrl
-        },
-        isActive: true
-      },
-      { upsert: true, new: true }
-    );
-
-    return connection;
+    return response.json();
   }
 
-  private async normalizeProfileData(platform: string, rawData: any) {
+  async connectSocialMedia(platform: SupportedPlatform, userId: string, accessToken: string): Promise<void> {
+    const config = this.platformConfigs[platform];
+    if (!config) {
+      throw new Error(`Unsupported platform: ${platform}`);
+    }
+
+    // Implement the connection logic here
+    // This might involve saving the access token and platform info to the user's record
+  }
+
+  async disconnectPlatform(userId: string, platform: string) {
+    await SocialMediaConnection.deleteOne({
+      userId: new Types.ObjectId(userId),
+      platform,
+    });
+  }
+
+  private generateRandomString(length: number): string {
+    const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+    for (let i = 0; i < length; i++) {
+      result += charset.charAt(Math.floor(Math.random() * charset.length));
+    }
+    return result;
+  }
+
+  private async exchangeCodeForToken(platform: SupportedPlatform, code: string): Promise<{ access_token: string }> {
+    const config = this.platformConfigs[platform];
+    if (!config) {
+      throw new Error(`Unsupported platform: ${platform}`);
+    }
+
+    const params = new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: config.oauth.redirectUri,
+      client_id: config.oauth.clientId,
+      client_secret: config.oauth.clientSecret,
+    });
+
     switch (platform) {
-      case 'twitter':
-        return {
-          platformUserId: rawData.data.id,
-          username: rawData.data.username,
-          displayName: rawData.data.name,
-          profileUrl: `https://twitter.com/${rawData.data.username}`,
-          avatarUrl: rawData.data.profile_image_url
-        };
-      case 'linkedin':
-        return {
-          platformUserId: rawData.id,
-          username: rawData.vanityName || rawData.id,
-          displayName: `${rawData.localizedFirstName} ${rawData.localizedLastName}`,
-          profileUrl: `https://www.linkedin.com/in/${rawData.vanityName || rawData.id}`,
-          avatarUrl: rawData.profilePicture?.['displayImage~']?.elements?.[0]?.identifiers?.[0]?.identifier
-        };
+      case 'linkedin': {
+        const response = await axios.post<{ access_token: string }>(
+          'https://www.linkedin.com/oauth/v2/accessToken',
+          params.toString(),
+          {
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          }
+        );
+        return response.data;
+      }
       default:
         throw new Error(`Unsupported platform: ${platform}`);
     }
+  }
+
+  private async fetchProfileData(platform: SupportedPlatform, accessToken: string): Promise<any> {
+    switch (platform) {
+      case 'linkedin': {
+        const response = await axios.get('https://api.linkedin.com/v2/me', {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        return response.data;
+      }
+      default:
+        throw new Error(`Unsupported platform: ${platform}`);
+    }
+  }
+
+  async getConnections(userId: string): Promise<ISocialMediaConnection[]> {
+    return SocialMediaConnection.find({ userId, isActive: true });
   }
 
   async refreshTokenIfNeeded(connection: ISocialMediaConnection): Promise<ISocialMediaConnection> {
@@ -142,7 +185,10 @@ class SocialMediaService {
       return connection;
     }
 
-    const config = platformConfig[connection.platform];
+    // Type assertion to ensure connection.platform is treated as SupportedPlatform
+    const platform = connection.platform as SupportedPlatform;
+    const config = platformConfigs[platform];
+    
     if (!config) {
       throw new Error(`Unsupported platform: ${connection.platform}`);
     }
@@ -166,17 +212,6 @@ class SocialMediaService {
 
     await connection.save();
     return connection;
-  }
-
-  async getConnections(userId: string): Promise<ISocialMediaConnection[]> {
-    return SocialMediaConnection.find({ userId, isActive: true });
-  }
-
-  async disconnectPlatform(userId: string, platform: string): Promise<void> {
-    await SocialMediaConnection.findOneAndUpdate(
-      { userId, platform },
-      { isActive: false }
-    );
   }
 }
 

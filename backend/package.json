@@ -9,7 +9,9 @@
     "test": "jest --config jest.config.js --detectOpenHandles --forceExit",
     "test:watch": "jest --config jest.config.js --watch",
     "test:coverage": "jest --config jest.config.js --coverage",
-    "lint": "eslint . --ext .ts"
+    "test:types": "tsc --noEmit",
+    "lint": "eslint . --ext .ts",
+    "lint:fix": "eslint . --ext .ts --fix"
   },
   "keywords": [],
   "author": "",
@@ -18,9 +20,7 @@
   "dependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.17",
-    "@types/express": "^5.0.1",
     "@types/jsonwebtoken": "^9.0.9",
-    "@types/node": "^22.13.11",
     "bcrypt": "^5.1.1",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
@@ -33,13 +33,16 @@
     "mongoose": "^8.12.2",
     "morgan": "^1.10.0",
     "ts-node": "^10.9.2",
-    "typescript": "^5.8.2",
     "winston": "^3.17.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
+    "@types/express": "^5.0.1",
+    "@types/express-session": "^1.18.1",
     "@types/jest": "^29.5.14",
     "@types/morgan": "^1.9.9",
+    "@types/node": "^22.13.14",
     "@types/supertest": "^6.0.2",
     "@typescript-eslint/eslint-plugin": "^8.27.0",
     "@typescript-eslint/parser": "^8.27.0",
@@ -48,6 +51,7 @@
     "mongodb-memory-server": "^10.1.4",
     "supertest": "^6.3.4",
     "ts-jest": "^29.2.6",
-    "ts-node-dev": "^2.0.0"
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.8.2"
   }
 }

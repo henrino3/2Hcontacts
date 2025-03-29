@@ -1,16 +1,20 @@
 import { Contact, IContact } from '../Contact';
 import { User, IUser } from '../User';
-import mongoose, { Error } from 'mongoose';
+import mongoose, { Document, Types } from 'mongoose';
+
+interface IUserDocument extends Document, IUser {
+  _id: Types.ObjectId;
+}
 
 describe('Contact Model', () => {
-  let testUser: IUser;
+  let testUser: IUserDocument;
 
   beforeEach(async () => {
     testUser = await User.create({
       email: 'test@example.com',
       password: 'password123',
       name: 'Test User',
-    });
+    }) as IUserDocument;
   });
 
   describe('validation', () => {
@@ -32,17 +36,17 @@ describe('Contact Model', () => {
     it('should fail validation without required fields', async () => {
       const contactWithoutRequired = new Contact({});
       
-      let error: Error.ValidationError | null = null;
+      let validationError: mongoose.Error.ValidationError | null = null;
       try {
         await contactWithoutRequired.save();
       } catch (err) {
-        error = err as Error.ValidationError;
+        validationError = err as mongoose.Error.ValidationError;
       }
       
-      expect(error).toBeDefined();
-      expect(error?.errors.userId).toBeDefined();
-      expect(error?.errors.firstName).toBeDefined();
-      expect(error?.errors.lastName).toBeDefined();
+      expect(validationError).toBeDefined();
+      expect(validationError?.errors.userId).toBeDefined();
+      expect(validationError?.errors.firstName).toBeDefined();
+      expect(validationError?.errors.lastName).toBeDefined();
     });
 
     it('should trim whitespace from string fields', async () => {
@@ -156,6 +160,71 @@ describe('Contact Model', () => {
         expect(retrievedContact.socialProfiles.get('linkedin')).toBe('linkedin.com/johndoe');
         expect(retrievedContact.socialProfiles.get('twitter')).toBe('twitter.com/johndoe');
       }
+    });
+  });
+
+  describe('sync functionality', () => {
+    it('should update lastSyncedAt timestamp on save', async () => {
+      const contact = new Contact({
+        userId: testUser._id,
+        firstName: 'John',
+        lastName: 'Doe',
+      });
+
+      const savedContact = await contact.save();
+      expect(savedContact.lastSyncedAt).toBeDefined();
+      expect(savedContact.lastSyncedAt instanceof Date).toBe(true);
+    });
+
+    it('should update lastSyncedAt timestamp on update', async () => {
+      const contact = await Contact.create({
+        userId: testUser._id,
+        firstName: 'John',
+        lastName: 'Doe',
+      });
+
+      const originalSyncTime = contact.lastSyncedAt;
+      await new Promise(resolve => setTimeout(resolve, 100)); // Wait 100ms
+
+      contact.firstName = 'Jane';
+      const updatedContact = await contact.save();
+
+      expect(updatedContact.lastSyncedAt).toBeDefined();
+      expect(updatedContact.lastSyncedAt).not.toEqual(originalSyncTime);
+      expect(updatedContact.lastSyncedAt.getTime()).toBeGreaterThan(originalSyncTime.getTime());
+    });
+
+    it('should maintain social profiles as a Map', async () => {
+      const socialProfiles = new Map([
+        ['linkedin', 'https://linkedin.com/in/johndoe'],
+        ['instagram', '@johndoe'],
+        ['x', '@johndoe']
+      ]);
+
+      const contact = await Contact.create({
+        userId: testUser._id,
+        firstName: 'John',
+        lastName: 'Doe',
+        socialProfiles
+      });
+
+      const savedContact = await Contact.findById(contact._id);
+      expect(savedContact?.socialProfiles instanceof Map).toBe(true);
+      expect(savedContact?.socialProfiles.get('linkedin')).toBe('https://linkedin.com/in/johndoe');
+      expect(savedContact?.socialProfiles.get('instagram')).toBe('@johndoe');
+      expect(savedContact?.socialProfiles.get('x')).toBe('@johndoe');
+    });
+
+    it('should handle empty social profiles', async () => {
+      const contact = await Contact.create({
+        userId: testUser._id,
+        firstName: 'John',
+        lastName: 'Doe',
+      });
+
+      const savedContact = await Contact.findById(contact._id);
+      expect(savedContact?.socialProfiles instanceof Map).toBe(true);
+      expect(savedContact?.socialProfiles.size).toBe(0);
     });
   });
 }); 

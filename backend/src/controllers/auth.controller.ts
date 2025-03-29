@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { User, IUser } from '../models/User';
+import { UserRole } from '../types/auth';
 import { generateToken } from '../utils/jwt';
 import bcrypt from 'bcrypt';
 import { Document, Types } from 'mongoose';
@@ -9,14 +10,15 @@ interface IUserDocument extends Document, IUser {
 }
 
 export class AuthController {
-  static async register(req: Request, res: Response) {
+  static async register(req: Request, res: Response): Promise<void> {
     try {
       const { email, password, name } = req.body;
 
       // Check if user already exists
       const existingUser = await User.findOne({ email });
       if (existingUser) {
-        return res.status(400).json({ message: 'User already exists' });
+        res.status(400).json({ message: 'User already exists' });
+        return;
       }
 
       // Create new user
@@ -28,82 +30,90 @@ export class AuthController {
 
       // Generate token
       const token = generateToken({
-        userId: user._id.toString(),
+        userId: user._id,
         email: user.email,
+        role: user.role,
         iat: Math.floor(Date.now() / 1000),
       });
 
-      return res.status(201).json({
+      res.status(201).json({
         user: {
           id: user._id,
           email: user.email,
           name: user.name,
+          role: user.role,
         },
         token,
       });
     } catch (error) {
       console.error('Registration error:', error);
-      return res.status(500).json({ message: 'Internal server error' });
+      res.status(500).json({ message: 'Internal server error' });
     }
   }
 
-  static async login(req: Request, res: Response) {
+  static async login(req: Request, res: Response): Promise<void> {
     try {
       const { email, password } = req.body;
 
       // Find user
       const user = await User.findOne({ email }).select('+password') as IUserDocument;
       if (!user) {
-        return res.status(401).json({ message: 'Invalid credentials' });
+        res.status(401).json({ message: 'Invalid credentials' });
+        return;
       }
 
       // Check password
       const isPasswordValid = await bcrypt.compare(password, user.password);
       if (!isPasswordValid) {
-        return res.status(401).json({ message: 'Invalid credentials' });
+        res.status(401).json({ message: 'Invalid credentials' });
+        return;
       }
 
       // Generate token
       const token = generateToken({
-        userId: user._id.toString(),
+        userId: user._id,
         email: user.email,
+        role: user.role,
         iat: Math.floor(Date.now() / 1000),
       });
 
-      return res.json({
+      res.json({
         user: {
           id: user._id,
           email: user.email,
           name: user.name,
+          role: user.role,
         },
         token,
       });
     } catch (error) {
       console.error('Login error:', error);
-      return res.status(500).json({ message: 'Internal server error' });
+      res.status(500).json({ message: 'Internal server error' });
     }
   }
 
-  static async getCurrentUser(req: Request, res: Response) {
+  static async getCurrentUser(req: Request, res: Response): Promise<void> {
     try {
       // @ts-ignore - userId is added by auth middleware
       const userId = req.userId;
       const user = await User.findById(userId) as IUserDocument;
 
       if (!user) {
-        return res.status(404).json({ message: 'User not found' });
+        res.status(404).json({ message: 'User not found' });
+        return;
       }
 
-      return res.json({
+      res.json({
         user: {
           id: user._id,
           email: user.email,
           name: user.name,
+          role: user.role,
         },
       });
     } catch (error) {
       console.error('Get current user error:', error);
-      return res.status(500).json({ message: 'Internal server error' });
+      res.status(500).json({ message: 'Internal server error' });
     }
   }
 } 

@@ -1,11 +1,31 @@
 import { Types } from 'mongoose';
 import { Contact, IContact } from '../models/Contact';
 import { SyncLog, ISyncLog, SyncOperation, SyncStatus } from '../models/SyncLog';
+import { transformContact } from '../utils/transformers';
 
 export interface SyncConflict {
   localVersion: Partial<IContact>;
   serverVersion: Partial<IContact>;
   conflictFields: string[];
+}
+
+interface SyncResult {
+  success: boolean;
+  processed: number;
+  failed: number;
+  errors?: string[];
+}
+
+interface SyncChange {
+  operation: SyncOperation;
+  contactId?: string;
+  contact?: any;
+}
+
+interface SyncResponse {
+  operation: SyncOperation;
+  contact?: any;
+  contactId?: string;
 }
 
 export class SyncService {
@@ -230,5 +250,143 @@ export class SyncService {
     syncLog.status = SyncStatus.COMPLETED;
     syncLog.syncedAt = new Date();
     await syncLog.save();
+  }
+
+  static async syncChanges(userId: Types.ObjectId, changes: SyncChange[]): Promise<SyncResult> {
+    const result: SyncResult = {
+      success: true,
+      processed: 0,
+      failed: 0,
+      errors: [],
+    };
+
+    for (const change of changes) {
+      try {
+        let syncLog: ISyncLog | null = null;
+
+        switch (change.operation) {
+          case SyncOperation.CREATE: {
+            const contact = await Contact.create({
+              ...change.contact,
+              userId,
+            });
+
+            syncLog = await SyncLog.create({
+              userId,
+              operation: change.operation,
+              entityId: contact._id,
+              entityType: 'Contact',
+              status: SyncStatus.COMPLETED,
+              syncedAt: new Date(),
+            });
+
+            result.processed++;
+            break;
+          }
+
+          case SyncOperation.UPDATE: {
+            if (!change.contactId) {
+              throw new Error('Contact ID is required for update operation');
+            }
+
+            const contact = await Contact.findOneAndUpdate(
+              { _id: change.contactId, userId },
+              change.contact,
+              { new: true }
+            );
+
+            if (!contact) {
+              throw new Error('Contact not found');
+            }
+
+            syncLog = await SyncLog.create({
+              userId,
+              operation: change.operation,
+              entityId: new Types.ObjectId(change.contactId),
+              entityType: 'Contact',
+              status: SyncStatus.COMPLETED,
+              syncedAt: new Date(),
+            });
+
+            result.processed++;
+            break;
+          }
+
+          case SyncOperation.DELETE: {
+            if (!change.contactId) {
+              throw new Error('Contact ID is required for delete operation');
+            }
+
+            const contact = await Contact.findOneAndDelete({
+              _id: change.contactId,
+              userId,
+            });
+
+            if (!contact) {
+              throw new Error('Contact not found');
+            }
+
+            syncLog = await SyncLog.create({
+              userId,
+              operation: change.operation,
+              entityId: new Types.ObjectId(change.contactId),
+              entityType: 'Contact',
+              status: SyncStatus.COMPLETED,
+              syncedAt: new Date(),
+            });
+
+            result.processed++;
+            break;
+          }
+        }
+      } catch (error) {
+        result.failed++;
+        result.errors?.push(error instanceof Error ? error.message : 'Unknown error');
+        result.success = false;
+
+        // Create failed sync log
+        await SyncLog.create({
+          userId,
+          operation: change.operation,
+          entityId: change.contactId ? new Types.ObjectId(change.contactId) : new Types.ObjectId(),
+          entityType: 'Contact',
+          status: SyncStatus.FAILED,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+
+    return result;
+  }
+
+  static async getChanges(userId: Types.ObjectId, since: Date): Promise<SyncResponse[]> {
+    const [contacts, deletedLogs] = await Promise.all([
+      Contact.find({
+        userId,
+        $or: [
+          { createdAt: { $gt: since } },
+          { updatedAt: { $gt: since } },
+        ],
+      }).lean(),
+      SyncLog.find({
+        userId,
+        operation: SyncOperation.DELETE,
+        status: SyncStatus.COMPLETED,
+        completedAt: { $gt: since },
+      }),
+    ]);
+
+    const changes: SyncResponse[] = [
+      ...contacts.map(contact => ({
+        operation: contact.createdAt > since ? SyncOperation.CREATE : SyncOperation.UPDATE,
+        contact: transformContact(contact),
+      })),
+      ...deletedLogs.map(log => ({
+        operation: SyncOperation.DELETE,
+        contactId: log.entityId.toString(),
+      })),
+    ];
+
+    return changes;
   }
 } 
