@@ -1,180 +1,153 @@
 import { create } from 'zustand';
-
-export interface Contact {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  company: string;
-  title: string;
-  category?: string;
-  tags?: string[];
-  isFavorite: boolean;
-  profilePicture?: string;
-  socialProfiles?: {
-    linkedin?: string;
-    instagram?: string;
-    x?: string;
-  };
-}
+import { Contact } from '../../types';
+import api from './api';
 
 interface ContactStore {
-  contacts: Contact[];
-  updateContact: (updatedContact: Contact) => void;
-  deleteContact: (contactId: string) => void;
+  contacts: Contact[] | null;
+  isLoading: boolean;
+  error: string | null;
+  fetchContacts: () => Promise<void>;
+  createContact: (contact: Partial<Contact>) => Promise<Contact>;
+  updateContact: (id: string, contact: Partial<Contact>) => Promise<Contact>;
+  deleteContact: (id: string) => Promise<void>;
 }
 
-export const useContactStore = create<ContactStore>((set) => ({
-  contacts: [
-    {
-      id: '1',
-      firstName: 'John',
-      lastName: 'Smith',
-      email: 'john.smith@techsolutions.com',
-      phone: '+1 (555) 123-4567',
-      company: 'Tech Solutions Inc.',
-      title: 'Senior Developer',
-      isFavorite: true,
-      category: 'Work',
-      tags: ['developer', 'tech'],
-      socialProfiles: {
-        linkedin: 'johnsmith',
-        x: '@johnsmith',
-        instagram: '@johnsmith.dev'
+export const useContactStore = create<ContactStore>((set, get) => ({
+  contacts: null,
+  isLoading: false,
+  error: null,
+
+  fetchContacts: async () => {
+    console.log('Fetching contacts...');
+    set({ isLoading: true, error: null });
+    
+    try {
+      const response = await api.get('/contacts');
+      console.log('API Response:', response.data);
+      
+      if (response.data && Array.isArray(response.data.contacts)) {
+        set({ contacts: response.data.contacts, isLoading: false });
+        console.log('Contacts updated:', response.data.contacts.length, 'contacts');
+      } else {
+        throw new Error('Invalid response format');
       }
-    },
-    {
-      id: '2',
-      firstName: 'Sarah',
-      lastName: 'Johnson',
-      email: 'sarah.j@creativedesigns.com',
-      phone: '+1 (555) 234-5678',
-      company: 'Creative Designs',
-      title: 'UI/UX Designer',
-      isFavorite: true,
-      category: 'Work',
-      tags: ['design', 'creative'],
-    },
-    {
-      id: '3',
-      firstName: 'Michael',
-      lastName: 'Brown',
-      email: 'mike.brown@family.net',
-      phone: '+1 (555) 345-6789',
-      company: 'Family',
-      title: 'Brother',
-      category: 'Family',
-      tags: ['family', 'personal'],
-      isFavorite: true
-    },
-    {
-      id: '4',
-      firstName: 'Emily',
-      lastName: 'Davis',
-      email: 'emily.davis@marketing.com',
-      phone: '+1 (555) 456-7890',
-      company: 'Marketing Pro',
-      title: 'Marketing Manager',
-      category: 'Work',
-      tags: ['marketing', 'management'],
-      isFavorite: false,
-      socialProfiles: {
-        linkedin: 'emilydavis',
-        twitter: '@emilymarkets'
-      }
-    },
-    {
-      id: '5',
-      firstName: 'David',
-      lastName: 'Wilson',
-      email: 'david.wilson@gym.fit',
-      phone: '+1 (555) 567-8901',
-      company: 'FitLife Gym',
-      title: 'Personal Trainer',
-      category: 'Health',
-      tags: ['fitness', 'health', 'personal'],
-      isFavorite: false
-    },
-    {
-      id: '6',
-      firstName: 'Lisa',
-      lastName: 'Anderson',
-      email: 'lisa.anderson@school.edu',
-      phone: '+1 (555) 678-9012',
-      company: 'City High School',
-      title: 'Teacher',
-      category: 'Education',
-      tags: ['education', 'work'],
-      isFavorite: false
-    },
-    {
-      id: '7',
-      firstName: 'Robert',
-      lastName: 'Taylor',
-      email: 'rob.taylor@finance.com',
-      phone: '+1 (555) 789-0123',
-      company: 'Investment Group',
-      title: 'Financial Advisor',
-      category: 'Finance',
-      tags: ['finance', 'business'],
-      isFavorite: false,
-      socialProfiles: {
-        linkedin: 'roberttaylor'
-      }
-    },
-    {
-      id: '8',
-      firstName: 'Jennifer',
-      lastName: 'Martinez',
-      email: 'jen.martinez@startup.io',
-      phone: '+1 (555) 890-1234',
-      company: 'Tech Startup',
-      title: 'CEO',
-      category: 'Work',
-      tags: ['startup', 'tech', 'management'],
-      isFavorite: true,
-      socialProfiles: {
-        linkedin: 'jenmartinez',
-        twitter: '@jenthefounder'
-      }
-    },
-    {
-      id: '9',
-      firstName: 'William',
-      lastName: 'Lee',
-      email: 'will.lee@restaurant.com',
-      phone: '+1 (555) 901-2345',
-      company: 'Gourmet Kitchen',
-      title: 'Chef',
-      category: 'Business',
-      tags: ['food', 'business'],
-      isFavorite: false
-    },
-    {
-      id: '10',
-      firstName: 'Maria',
-      lastName: 'Garcia',
-      email: 'maria.g@community.org',
-      phone: '+1 (555) 012-3456',
-      company: 'Community Center',
-      title: 'Volunteer Coordinator',
-      category: 'Community',
-      tags: ['volunteer', 'community', 'nonprofit'],
-      isFavorite: false,
-      socialProfiles: {
-        twitter: '@mariaserves'
-      }
+    } catch (error) {
+      console.error('Error fetching contacts:', error);
+      set({ 
+        contacts: [], 
+        error: error instanceof Error ? error.message : 'Failed to fetch contacts',
+        isLoading: false 
+      });
     }
-  ],
-  updateContact: (updatedContact) =>
-    set((state) => ({
-      contacts: state.contacts.map((contact) =>
-        contact.id === updatedContact.id ? updatedContact : contact
-      ),
-    })),
-  deleteContact: (contactId) =>
-    set((state) => ({
-      contacts: state.contacts.filter((contact) => contact.id !== contactId),
-    })),
+  },
+
+  createContact: async (contact) => {
+    console.log('Creating contact:', contact);
+    set({ isLoading: true, error: null });
+    
+    try {
+      const response = await api.post('/contacts', contact);
+      console.log('Create contact response:', response.data);
+      
+      const newContact = response.data;
+      const currentContacts = get().contacts || [];
+      set({ 
+        contacts: [...currentContacts, newContact],
+        isLoading: false 
+      });
+      
+      return newContact;
+    } catch (error) {
+      console.error('Error creating contact:', error);
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to create contact',
+        isLoading: false 
+      });
+      throw error;
+    }
+  },
+
+  updateContact: async (id, contact) => {
+    console.log('Updating contact:', id, contact);
+    set({ isLoading: true, error: null });
+    
+    try {
+      const contactId = contact._id || id;
+      const response = await api.put(`/contacts/${contactId}`, contact);
+      console.log('Update contact response:', response.data);
+      
+      const updatedContact = response.data;
+      const currentContacts = get().contacts || [];
+      set({
+        contacts: currentContacts.map(c => 
+          (c._id === contactId || c.id === contactId) ? updatedContact : c
+        ),
+        isLoading: false
+      });
+      
+      return updatedContact;
+    } catch (error) {
+      console.error('Error updating contact:', error);
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to update contact',
+        isLoading: false 
+      });
+      throw error;
+    }
+  },
+
+  deleteContact: async (id) => {
+    console.log('Deleting contact with ID:', id);
+    set({ isLoading: true, error: null });
+    
+    try {
+      // Find the contact first to get the MongoDB _id
+      const currentContacts = get().contacts || [];
+      console.log('Current contacts:', currentContacts.map(c => ({ id: c.id, _id: c._id })));
+      
+      // Try to find the contact by either id or _id
+      const contact = currentContacts.find(c => c.id === id || c._id === id);
+      console.log('Found contact:', contact ? { id: contact.id, _id: contact._id } : null);
+      
+      if (!contact) {
+        throw new Error('Contact not found');
+      }
+
+      // Use the MongoDB _id for deletion - if not available, use the id
+      const deleteId = contact._id || contact.id;
+      console.log('Attempting to delete contact with _id:', deleteId);
+      
+      try {
+        const response = await api.delete(`/contacts/${deleteId}`);
+        console.log('Delete response:', response.data);
+        
+        // Only update the state if the delete was successful
+        set({
+          contacts: currentContacts.filter(c => c._id !== deleteId && c.id !== deleteId),
+          isLoading: false
+        });
+        console.log('Contact deleted successfully');
+      } catch (error: any) {
+        // If we get a 404, the contact might have been deleted already
+        if (error.response?.status === 404) {
+          // Remove from local state anyway
+          set({
+            contacts: currentContacts.filter(c => c._id !== deleteId && c.id !== deleteId),
+            isLoading: false,
+            error: null
+          });
+          console.log('Contact not found on server, removed from local state');
+          return;
+        }
+        throw error;
+      }
+    } catch (error: any) {
+      console.error('Error deleting contact:', error);
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to delete contact',
+        isLoading: false 
+      });
+      throw error;
+    }
+  },
 })); 

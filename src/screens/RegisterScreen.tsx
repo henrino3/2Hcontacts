@@ -1,95 +1,99 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, Alert } from 'react-native';
-import { Text, Button, Input } from '../components/ui';
+import { View, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { Text } from '../components/ui';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAuth } from '../hooks/useAuth';
+import { api } from '../services/api/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
-import { RootStackParamList } from '../types/navigation';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-
-type RegisterScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Register'>;
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 export function RegisterScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { register } = useAuth();
-  const navigation = useNavigation<RegisterScreenNavigationProp>();
+  const [error, setError] = useState<string | null>(null);
 
   const handleRegister = async () => {
-    if (!name || !email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
-      return;
-    }
-
-    if (password.length < 8) {
-      Alert.alert('Error', 'Password must be at least 8 characters long');
-      return;
-    }
-
     try {
       setIsLoading(true);
-      await register({ name, email, password });
-    } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Registration failed');
+      setError(null);
+
+      const response = await api.post('/auth/register', {
+        name,
+        email,
+        password,
+      });
+
+      // Store the token
+      await AsyncStorage.setItem('authToken', response.data.token);
+      await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
+
+      // Navigate to the main app
+      navigation.replace('Main');
+    } catch (error: any) {
+      console.error('Registration error:', error);
+      setError(error.response?.data?.error || 'Failed to register');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleBackToLogin = () => {
-    navigation.navigate('Login');
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <Text variant="h1" style={styles.title}>Create Account</Text>
-        <Input
-          label="Full Name"
-          value={name}
-          onChangeText={setName}
-          autoCapitalize="words"
-          autoComplete="name"
-          textContentType="name"
-          editable={!isLoading}
-        />
-        <Input
-          label="Email"
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          autoComplete="email"
-          textContentType="emailAddress"
-          editable={!isLoading}
-        />
-        <Input
-          label="Password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          autoComplete="password-new"
-          textContentType="newPassword"
-          editable={!isLoading}
-        />
-        <Button
-          onPress={handleRegister}
-          loading={isLoading}
-          style={styles.registerButton}
-          disabled={isLoading}
-        >
-          {isLoading ? 'Creating Account...' : 'Create Account'}
-        </Button>
-        <Button 
-          variant="secondary" 
-          onPress={handleBackToLogin}
+        <Text weight="bold" style={styles.title}>Create Account</Text>
+        
+        <View style={styles.form}>
+          <TextInput
+            style={styles.input}
+            placeholder="Name"
+            value={name}
+            onChangeText={setName}
+            autoCapitalize="words"
+          />
+
+          <TextInput
+            style={styles.input}
+            placeholder="Email"
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+          />
+          
+          <TextInput
+            style={styles.input}
+            placeholder="Password"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+          />
+
+          {error && (
+            <Text style={styles.error}>{error}</Text>
+          )}
+
+          <TouchableOpacity 
+            style={styles.button}
+            onPress={handleRegister}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text weight="semibold" style={styles.buttonText}>Register</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity 
           style={styles.loginButton}
-          disabled={isLoading}
+          onPress={() => navigation.navigate('Login')}
         >
-          Back to Login
-        </Button>
+          <Text>Already have an account? Log in</Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -101,18 +105,43 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   content: {
-    padding: 16,
-    justifyContent: 'center',
     flex: 1,
+    padding: 20,
+    justifyContent: 'center',
   },
   title: {
+    fontSize: 32,
     marginBottom: 32,
     textAlign: 'center',
   },
-  registerButton: {
-    marginTop: 24,
+  form: {
+    gap: 16,
+  },
+  input: {
+    height: 48,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    fontSize: 16,
+  },
+  button: {
+    height: 48,
+    backgroundColor: '#007AFF',
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+  },
+  error: {
+    color: 'red',
+    textAlign: 'center',
   },
   loginButton: {
-    marginTop: 12,
+    marginTop: 16,
+    alignItems: 'center',
   },
 }); 

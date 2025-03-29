@@ -1,7 +1,14 @@
 import { api } from './api';
 import { SocialMediaConnection } from '../../types';
 
-export interface AuthUrlResponse {
+// Regular expression for validating MongoDB ObjectId format
+const OBJECT_ID_REGEX = /^[0-9a-fA-F]{24}$/;
+
+function isValidObjectId(id: string): boolean {
+  return OBJECT_ID_REGEX.test(id);
+}
+
+interface AuthUrlResponse {
   authUrl: string;
 }
 
@@ -17,6 +24,14 @@ export const socialMediaApi = {
       {
         params: { code, state }
       }
+    );
+    return response.data.connection;
+  },
+
+  async handleSDKAuth(platform: string, accessToken: string): Promise<SocialMediaConnection> {
+    const response = await api.post<{ success: boolean; connection: SocialMediaConnection }>(
+      `/social/sdk-auth/${platform}`,
+      { accessToken }
     );
     return response.data.connection;
   },

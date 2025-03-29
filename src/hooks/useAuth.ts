@@ -1,21 +1,9 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-}
-
-interface LoginCredentials {
-  email: string;
-  password: string;
-}
-
-interface RegisterData extends LoginCredentials {
-  name: string;
-}
+import AuthService from '../services/auth';
+import { User, LoginCredentials, RegisterData } from '../types';
+import { login as loginService } from '../services/api/auth';
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
@@ -26,8 +14,9 @@ export function useAuth() {
   useEffect(() => {
     const loadUser = async () => {
       try {
+        const token = await AsyncStorage.getItem('authToken');
         const storedUser = await AsyncStorage.getItem('user');
-        if (storedUser) {
+        if (token && storedUser) {
           setUser(JSON.parse(storedUser));
           setIsAuthenticated(true);
         }
@@ -43,40 +32,28 @@ export function useAuth() {
 
   const login = useCallback(async (credentials: LoginCredentials) => {
     try {
-      // TODO: Replace with actual API call
-      if (credentials.email && credentials.password) {
-        const mockUser = {
-          id: '1',
-          name: 'Test User',
-          email: credentials.email,
-        };
-        await AsyncStorage.setItem('user', JSON.stringify(mockUser));
-        setUser(mockUser);
-        setIsAuthenticated(true);
-      } else {
-        throw new Error('Invalid credentials');
-      }
+      setIsLoading(true);
+      const { token, user } = await loginService(credentials.email, credentials.password);
+      setUser(user);
+      setIsAuthenticated(true);
+      await AsyncStorage.setItem('user', JSON.stringify(user));
+      await AsyncStorage.setItem('authToken', token);
+      return user;
     } catch (error) {
       console.error('Login error:', error);
       throw error;
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
   const register = useCallback(async (data: RegisterData) => {
     try {
-      // TODO: Replace with actual API call
-      if (data.email && data.password && data.name) {
-        const mockUser = {
-          id: '1',
-          name: data.name,
-          email: data.email,
-        };
-        await AsyncStorage.setItem('user', JSON.stringify(mockUser));
-        setUser(mockUser);
-        setIsAuthenticated(true);
-      } else {
-        throw new Error('Invalid registration data');
-      }
+      const response = await AuthService.register(data);
+      setUser(response);
+      setIsAuthenticated(true);
+      await AsyncStorage.setItem('user', JSON.stringify(response));
+      return response;
     } catch (error) {
       console.error('Registration error:', error);
       throw error;
@@ -85,12 +62,14 @@ export function useAuth() {
 
   const logout = useCallback(async () => {
     try {
+      await AuthService.logout();
       await AsyncStorage.removeItem('user');
+      await AsyncStorage.removeItem('authToken');
       setUser(null);
       setIsAuthenticated(false);
     } catch (error) {
       console.error('Logout error:', error);
-      Alert.alert('Error', 'Failed to logout');
+      Alert.alert('Error', 'Failed to logout. Please try again.');
     }
   }, []);
 

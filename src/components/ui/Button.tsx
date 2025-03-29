@@ -9,13 +9,13 @@ import {
 } from 'react-native';
 import { Text } from './Text';
 
-type ButtonVariant = 'primary' | 'secondary' | 'destructive';
-type ButtonSize = 'small' | 'medium' | 'large';
+export type ButtonVariant = 'primary' | 'secondary' | 'outline';
 
 interface ButtonProps extends TouchableOpacityProps {
   children: React.ReactNode;
+  onPress?: () => void;
   variant?: ButtonVariant;
-  size?: ButtonSize;
+  disabled?: boolean;
   loading?: boolean;
   style?: ViewStyle;
   textStyle?: TextStyle;
@@ -23,41 +23,44 @@ interface ButtonProps extends TouchableOpacityProps {
 
 export function Button({
   children,
+  onPress,
   variant = 'primary',
-  size = 'medium',
+  disabled = false,
   loading = false,
   style,
   textStyle,
-  disabled,
   ...props
 }: ButtonProps) {
-  const isDisabled = disabled || loading;
+  const buttonStyles = [
+    styles.button,
+    variant === 'primary' && styles.primaryButton,
+    variant === 'secondary' && styles.secondaryButton,
+    variant === 'outline' && styles.outlineButton,
+    disabled && styles.disabledButton,
+    style,
+  ];
+
+  const textStyles = [
+    styles.text,
+    variant === 'primary' && styles.primaryText,
+    variant === 'secondary' && styles.secondaryText,
+    variant === 'outline' && styles.outlineText,
+    disabled && styles.disabledText,
+    textStyle,
+  ];
 
   return (
     <TouchableOpacity
-      style={[
-        styles.base,
-        styles[variant],
-        styles[size],
-        isDisabled && styles.disabled,
-        style,
-      ]}
-      disabled={isDisabled}
+      style={buttonStyles}
+      onPress={onPress}
+      disabled={disabled || loading}
+      activeOpacity={0.8}
       {...props}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'secondary' ? '#007AFF' : '#fff'} />
+        <ActivityIndicator color={variant === 'primary' ? '#fff' : '#007AFF'} />
       ) : (
-        <Text
-          style={[
-            styles.text,
-            styles[`${variant}Text`],
-            styles[`${size}Text`],
-            disabled && styles.disabledText,
-            textStyle,
-          ]}
-          weight="semibold"
-        >
+        <Text style={textStyles} weight="semibold">
           {children}
         </Text>
       )}
@@ -66,61 +69,41 @@ export function Button({
 }
 
 const styles = StyleSheet.create({
-  base: {
+  button: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    flexDirection: 'row',
+    minHeight: 44,
+  },
+  primaryButton: {
+    backgroundColor: '#007AFF',
+  },
+  secondaryButton: {
+    backgroundColor: '#E3F2FF',
+  },
+  outlineButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#007AFF',
+  },
+  disabledButton: {
+    opacity: 0.5,
   },
   text: {
     fontSize: 16,
   },
-  // Variants
-  primary: {
-    backgroundColor: '#007AFF',
-  },
   primaryText: {
     color: '#fff',
-  },
-  secondary: {
-    backgroundColor: '#F5F5F5',
   },
   secondaryText: {
     color: '#007AFF',
   },
-  destructive: {
-    backgroundColor: '#dc3545',
-  },
-  destructiveText: {
-    color: '#fff',
-  },
-  // Sizes
-  small: {
-    height: 32,
-    paddingHorizontal: 12,
-  },
-  smallText: {
-    fontSize: 14,
-  },
-  medium: {
-    height: 44,
-    paddingHorizontal: 16,
-  },
-  mediumText: {
-    fontSize: 16,
-  },
-  large: {
-    height: 54,
-    paddingHorizontal: 20,
-  },
-  largeText: {
-    fontSize: 18,
-  },
-  // States
-  disabled: {
-    opacity: 0.5,
+  outlineText: {
+    color: '#007AFF',
   },
   disabledText: {
-    opacity: 0.8,
+    color: '#999',
   },
 }); 

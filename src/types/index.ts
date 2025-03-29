@@ -1,24 +1,25 @@
 export interface User {
   id: string;
-  email: string;
   name: string;
-  createdAt: string;
-  updatedAt: string;
+  email: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Contact {
   id: string;
+  _id?: string;
   userId: string;
   firstName: string;
   lastName: string;
   email: string;
   phone: string;
   address?: {
-    street: string;
-    city: string;
-    state: string;
-    zipCode: string;
-    country: string;
+    street?: string;
+    city?: string;
+    state?: string;
+    zipCode?: string;
+    country?: string;
   };
   company?: string;
   title?: string;
@@ -31,15 +32,15 @@ export interface Contact {
     x?: string;
   };
   isFavorite: boolean;
-  createdAt: string;
-  updatedAt: string;
-  lastSyncedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
+  lastSyncedAt?: string;
 }
 
 export interface SocialMediaConnection {
   id: string;
   userId: string;
-  platform: 'twitter' | 'linkedin' | 'facebook' | 'instagram';
+  platform: 'twitter' | 'linkedin' | 'facebook' | 'instagram' | 'google';
   platformUserId: string;
   profileData: {
     username: string;
@@ -65,4 +66,14 @@ export interface LoginCredentials {
 
 export interface RegisterData extends LoginCredentials {
   name: string;
+}
+
+export interface PaginatedResponse<T> {
+  contacts: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    pages: number;
+  };
 } 

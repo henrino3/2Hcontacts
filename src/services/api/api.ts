@@ -1,38 +1,37 @@
-import axios from 'axios';
+import axios, { AxiosInstance } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Constants from 'expo-constants';
+import { API_CONFIG } from '../../config/api';
 
-const API_URL = Constants.expoConfig?.extra?.apiUrl || 'http://localhost:3000/api';
+// Create a single instance of axios
+export const api: AxiosInstance = axios.create(API_CONFIG);
 
-export const api = axios.create({
-  baseURL: API_URL,
-  headers: {
-    'Content-Type': 'application/json'
-  }
-});
-
-// Add token to requests
-api.interceptors.request.use(async (config) => {
-  try {
-    const token = await AsyncStorage.getItem('token');
+// Add request interceptor to add auth token
+api.interceptors.request.use(
+  async (config) => {
+    const token = await AsyncStorage.getItem('authToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+      console.log('Adding auth token to request:', token);
     }
     return config;
-  } catch (error) {
+  },
+  (error) => {
     return Promise.reject(error);
   }
-});
+);
 
-// Handle token expiration
+// Add response interceptor to handle token expiration
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
-      // Token expired or invalid
-      await AsyncStorage.removeItem('token');
-      // You might want to trigger a logout action here
+      // Clear token and redirect to login
+      await AsyncStorage.removeItem('authToken');
+      // You might want to trigger navigation to login screen here
+      // or use a callback provided by the app
     }
     return Promise.reject(error);
   }
-); 
+);
+
+export default api; 

@@ -14,6 +14,7 @@ import { useAuth } from '../hooks/useAuth';
 import { Loading } from '../components/ui';
 import { Ionicons } from '@expo/vector-icons';
 import { Contact } from '../services/api/dummyData';
+import { SafeAreaView, ActivityIndicator, StyleSheet } from 'react-native';
 
 export type RootStackParamList = {
   Main: undefined;
@@ -138,7 +139,11 @@ export function MainNavigator() {
   const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
-    return <Loading message="Loading..." />;
+    return (
+      <SafeAreaView style={styles.container}>
+        <ActivityIndicator size={36} color="#007AFF" />
+      </SafeAreaView>
+    );
   }
 
   return (
@@ -160,4 +165,13 @@ export function MainNavigator() {
       )}
     </Stack.Navigator>
   );
-} 
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+}); 

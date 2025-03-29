@@ -4,12 +4,14 @@ import { Text } from './Text';
 
 interface LoadingProps {
   message?: string;
+  size?: number;
+  color?: string;
 }
 
-export function Loading({ message }: LoadingProps) {
+export function Loading({ message, size = 36, color = "#007AFF" }: LoadingProps) {
   return (
     <View style={styles.container}>
-      <ActivityIndicator size="large" color="#007AFF" />
+      <ActivityIndicator size={size} color={color} />
       {message && (
         <Text style={styles.message}>{message}</Text>
       )}
@@ -22,6 +24,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#ffffff',
   },
   message: {
     marginTop: 12,
