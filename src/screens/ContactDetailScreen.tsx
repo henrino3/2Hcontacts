@@ -13,6 +13,7 @@ import { useContactStore } from '../services/api/dummyData';
 type RootStackParamList = {
   ContactDetail: {
     contact: Contact;
+    refreshTimestamp?: number;
   };
 };
 
@@ -21,12 +22,29 @@ type ContactDetailRouteProp = RouteProp<RootStackParamList, 'ContactDetail'>;
 export function ContactDetailScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const route = useRoute<ContactDetailRouteProp>();
-  const { contact } = route.params;
+  const [contact, setContact] = React.useState(route.params.contact);
   const deleteContactFromStore = useContactStore((state) => state.deleteContact);
   const [isDeleting, setIsDeleting] = React.useState(false);
 
+  React.useEffect(() => {
+    if (route.params.contact) {
+      console.log('ContactDetailScreen - New contact data received:', 
+        JSON.stringify(route.params.contact));
+      setContact(route.params.contact);
+    }
+  }, [route.params.contact, route.params.refreshTimestamp]);
+
+  React.useEffect(() => {
+    console.log('ContactDetailScreen categories:', JSON.stringify(contact.categories));
+  }, [contact.categories]);
+
   const handleEdit = () => {
-    navigation.navigate('EditContact', { contact });
+    navigation.navigate('EditContact', { 
+      contact,
+      onGoBack: () => {
+        // This is intentionally empty - we'll use the refreshTimestamp instead
+      }
+    });
   };
 
   const handleDelete = () => {
@@ -67,7 +85,14 @@ export function ContactDetailScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => {
+          try {
+            navigation.goBack();
+          } catch (error) {
+            console.log('Navigation error:', error);
+            navigation.navigate('Main');
+          }
+        }} style={styles.backButton}>
           <Ionicons name="chevron-back" size={24} color="#007AFF" />
           <Text style={styles.backButtonText}>Contacts</Text>
         </TouchableOpacity>
@@ -118,6 +143,22 @@ export function ContactDetailScreen() {
             </TouchableOpacity>
           )}
         </View>
+
+        {/* Categories Section */}
+        {contact.categories && contact.categories.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Categories</Text>
+            <View style={styles.categoriesContainer}>
+              {contact.categories.map((category, index) => (
+                <View key={index} style={styles.categoryChip}>
+                  <Text style={styles.categoryText}>
+                    {category.type === 'all' ? '' : `${category.type}: `}{category.value}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
 
         {contact.socialProfiles && Object.keys(contact.socialProfiles).length > 0 && (
           <View style={styles.section}>
@@ -285,5 +326,19 @@ const styles = StyleSheet.create({
     color: '#FF3B30',
     fontSize: 17,
     fontWeight: '400',
+  },
+  categoriesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  categoryChip: {
+    padding: 8,
+    margin: 4,
+    backgroundColor: '#E3F2FF',
+    borderRadius: 16,
+  },
+  categoryText: {
+    fontSize: 14,
+    color: '#007AFF',
   },
 }); 

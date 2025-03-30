@@ -16,6 +16,10 @@ export interface FrontendContact {
   company: string;
   title: string;
   notes: string;
+  categories: Array<{
+    type: string;
+    value: string;
+  }>;
   category: string;
   tags: string[];
   socialProfiles: {

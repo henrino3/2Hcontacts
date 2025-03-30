@@ -6,7 +6,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
-import { Contact, useContactStore } from '../services/api/dummyData';
+import { useContactStore } from '../services/api/dummyData';
+import { Contact } from '../types';
+import { CategoryMultiSelect } from '../components/CategoryMultiSelect';
 
 type EditContactRouteProp = RouteProp<{
   params: {
@@ -14,19 +16,27 @@ type EditContactRouteProp = RouteProp<{
   };
 }, 'params'>;
 
-type EditContactForm = {
+interface Category {
+  type: string;
+  value: string;
+}
+
+interface EditContactForm {
   firstName: string;
   lastName: string;
   company: string;
   title: string;
   email: string;
   phone: string;
+  categories: Category[];
   socialProfiles: {
     linkedin: string;
     instagram: string;
     x: string;
   };
-};
+}
+
+type FormField = keyof EditContactForm | `socialProfiles.${keyof EditContactForm['socialProfiles']}`;
 
 export function EditContactScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
@@ -37,10 +47,11 @@ export function EditContactScreen() {
   const [form, setForm] = useState<EditContactForm>({
     firstName: contact.firstName,
     lastName: contact.lastName,
-    company: contact.company,
-    title: contact.title,
-    email: contact.email,
-    phone: contact.phone,
+    company: contact.company || '',
+    title: contact.title || '',
+    email: contact.email || '',
+    phone: contact.phone || '',
+    categories: contact.categories || [],
     socialProfiles: {
       linkedin: contact.socialProfiles?.linkedin || '',
       instagram: contact.socialProfiles?.instagram || '',
@@ -54,33 +65,94 @@ export function EditContactScreen() {
       return;
     }
 
-    // Update the contact with the new form data while preserving other fields
-    updateContact({
-      ...contact,
-      ...form,
+    if (!contact.id) {
+      Alert.alert('Error', 'Contact ID is missing');
+      return;
+    }
+
+    // Convert social profiles to proper format
+    const socialProfiles: Record<string, string> = {};
+    if (form.socialProfiles.linkedin) socialProfiles.linkedin = form.socialProfiles.linkedin;
+    if (form.socialProfiles.instagram) socialProfiles.instagram = form.socialProfiles.instagram;
+    if (form.socialProfiles.x) socialProfiles.x = form.socialProfiles.x;
+
+    // Prepare the update data
+    const updateData = {
+      firstName: form.firstName.trim(),
+      lastName: form.lastName.trim(),
+      email: form.email.trim() || undefined,
+      phone: form.phone.trim() || undefined,
+      company: form.company.trim() || undefined,
+      title: form.title.trim() || undefined,
+      categories: form.categories || [],
+      // Set category for backward compatibility with API
+      category: form.categories?.[0]?.value || '',
+      socialProfiles: Object.keys(socialProfiles).length > 0 ? socialProfiles : undefined,
+      // Keep these fields from the original contact
+      id: contact.id,
+      _id: contact._id,
+      userId: contact.userId,
+      createdAt: contact.createdAt,
+      updatedAt: contact.updatedAt,
+      lastSyncedAt: contact.lastSyncedAt,
+      isFavorite: contact.isFavorite,
+      notes: contact.notes || '',
+      tags: contact.tags || [],
+      address: contact.address || {},
+    };
+
+    // Update the contact
+    updateContact(contact.id, updateData).then((response) => {
+      console.log('Response from API:', JSON.stringify(response));
+      
+      // Make sure the updated contact has the correct categories
+      const updatedContact = {
+        ...response,
+        // Use the API response categories if available, otherwise use form categories
+        categories: response.categories || form.categories
+      };
+      
+      console.log('Updated contact with categories:', JSON.stringify(updatedContact.categories));
+      
+      // Use navigation.navigate to previous screen with updated contact
+      navigation.navigate({
+        name: 'ContactDetail',
+        params: {
+          contact: updatedContact,
+          refreshTimestamp: Date.now()
+        },
+        merge: true
+      });
+    }).catch((error: Error) => {
+      Alert.alert('Error', error.message || 'Failed to update contact');
     });
-
-    navigation.goBack();
   };
 
-  const updateForm = (field: keyof EditContactForm, value: string) => {
-    setForm(prev => ({ ...prev, [field]: value }));
-  };
-
-  const updateSocialProfile = (platform: keyof EditContactForm['socialProfiles'], value: string) => {
-    setForm(prev => ({
-      ...prev,
-      socialProfiles: {
-        ...prev.socialProfiles,
-        [platform]: value,
-      },
-    }));
+  const updateForm = (field: FormField, value: string) => {
+    if (field.startsWith('socialProfiles.')) {
+      const socialField = field.split('.')[1] as keyof typeof form.socialProfiles;
+      setForm(prev => ({
+        ...prev,
+        socialProfiles: {
+          ...prev.socialProfiles,
+          [socialField]: value
+        }
+      }));
+    } else {
+      setForm(prev => ({
+        ...prev,
+        [field]: value
+      }));
+    }
   };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => {
+          // Simply go back to previous screen with original contact
+          navigation.goBack();
+        }} style={styles.backButton}>
           <Ionicons name="chevron-back" size={24} color="#007AFF" />
         </TouchableOpacity>
         <Text variant="h2" weight="bold">Edit Contact</Text>
@@ -118,6 +190,11 @@ export function EditContactScreen() {
               autoCapitalize="words"
             />
           </View>
+
+          <CategoryMultiSelect
+            categories={form.categories}
+            onChange={(categories) => setForm(prev => ({ ...prev, categories }))}
+          />
 
           <View style={styles.inputGroup}>
             <TextInput
@@ -158,7 +235,7 @@ export function EditContactScreen() {
               style={styles.input}
               placeholder="LinkedIn Profile"
               value={form.socialProfiles.linkedin}
-              onChangeText={(value) => updateSocialProfile('linkedin', value)}
+              onChangeText={(value) => updateForm('socialProfiles.linkedin', value)}
               autoCapitalize="none"
               autoCorrect={false}
             />
@@ -166,7 +243,7 @@ export function EditContactScreen() {
               style={styles.input}
               placeholder="Instagram Profile"
               value={form.socialProfiles.instagram}
-              onChangeText={(value) => updateSocialProfile('instagram', value)}
+              onChangeText={(value) => updateForm('socialProfiles.instagram', value)}
               autoCapitalize="none"
               autoCorrect={false}
             />
@@ -174,7 +251,7 @@ export function EditContactScreen() {
               style={styles.input}
               placeholder="X (Twitter) Profile"
               value={form.socialProfiles.x}
-              onChangeText={(value) => updateSocialProfile('x', value)}
+              onChangeText={(value) => updateForm('socialProfiles.x', value)}
               autoCapitalize="none"
               autoCorrect={false}
             />

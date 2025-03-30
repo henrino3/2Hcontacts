@@ -6,24 +6,26 @@ export interface User {
   updatedAt?: string;
 }
 
+export interface Category {
+  type: string;
+  value: string;
+}
+
 export interface Contact {
   id: string;
   _id?: string;
   userId: string;
   firstName: string;
   lastName: string;
-  email: string;
-  phone: string;
-  address?: {
-    street?: string;
-    city?: string;
-    state?: string;
-    zipCode?: string;
-    country?: string;
-  };
+  email?: string;
+  phone?: string;
   company?: string;
   title?: string;
   notes?: string;
+  categories?: Array<{
+    type: string;
+    value: string;
+  }>;
   category?: string;
   tags?: string[];
   socialProfiles?: {
@@ -31,10 +33,17 @@ export interface Contact {
     instagram?: string;
     x?: string;
   };
-  isFavorite: boolean;
-  createdAt?: string;
-  updatedAt?: string;
-  lastSyncedAt?: string;
+  address?: {
+    street?: string;
+    city?: string;
+    state?: string;
+    country?: string;
+    postalCode?: string;
+  };
+  isFavorite?: boolean;
+  createdAt?: string | Date;
+  updatedAt?: string | Date;
+  lastSyncedAt?: string | Date;
 }
 
 export interface SocialMediaConnection {

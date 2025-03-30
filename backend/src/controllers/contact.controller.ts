@@ -22,14 +22,23 @@ const contactSchema = z.object({
   company: z.string().optional(),
   title: z.string().optional(),
   notes: z.string().optional(),
+  categories: z.array(
+    z.object({
+      type: z.string(),
+      value: z.string()
+    })
+  ).default([]),
   category: z.string().optional(),
-  tags: z.array(z.string()).optional(),
+  tags: z.array(z.string()).default([]),
   socialProfiles: z.object({
     linkedin: z.string().url().optional(),
     instagram: z.string().url().optional(),
     x: z.string().url().optional(),
-  }).optional(),
-  isFavorite: z.boolean().optional(),
+  }).optional().transform(val => val || {}),
+  isFavorite: z.preprocess((val) => 
+    val === undefined ? false : val,
+    z.boolean()
+  ),
 });
 
 const searchSchema = z.object({
@@ -81,12 +90,94 @@ export class ContactController {
   // Create a new contact
   static async createContact(req: Request, res: Response) {
     try {
+      // Before parsing the data, log the raw request body
+      console.log('Raw request body:', JSON.stringify(req.body, null, 2));
+      
       const validatedData = contactSchema.parse(req.body);
+      
+      // Check if the categories field exists in the request
+      const hasCategories = Array.isArray(validatedData.categories) && validatedData.categories.length > 0;
+      
+      // First create the contact with basic data
       const contact = await Contact.create({
         ...validatedData,
         userId: req.user._id,
+        // Set category from first category if available
+        category: hasCategories ? validatedData.categories[0].value : (validatedData.category || ''),
+        // Initialize empty categories array 
+        categories: []
       });
-      res.status(201).json(transformContact(contact));
+      
+      // Then update it separately to set categories correctly
+      if (hasCategories) {
+        // Get categories array from validated data
+        const categories = validatedData.categories.map(cat => ({
+          type: cat.type || 'all',
+          value: cat.value || ''
+        }));
+        
+        console.log('Setting categories:', JSON.stringify(categories, null, 2));
+        
+        // Try multiple update methods to ensure categories are saved
+        
+        // First - standard Mongoose update with $set and runValidators false
+        await Contact.findByIdAndUpdate(
+          contact._id, 
+          { $set: { categories: categories } },
+          { 
+            new: false,
+            runValidators: false,
+            strict: false
+          }
+        );
+        
+        // Fetch the updated contact with a delay to ensure MongoDB has completed the update
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Fetch the updated contact
+        const updatedContact = await Contact.findById(contact._id);
+        
+        if (!updatedContact) {
+          throw new Error('Failed to retrieve updated contact');
+        }
+        
+        // Get plain object to verify categories are saved
+        const contactObj = updatedContact.toObject();
+        
+        // Log the updated contact
+        console.log('Contact after categories update:', JSON.stringify(contactObj, null, 2));
+        console.log('Categories in updated contact:', JSON.stringify(contactObj.categories, null, 2));
+        
+        // If categories are still not saved, manually set them in the response
+        const finalCategories = Array.isArray(contactObj.categories) && contactObj.categories.length > 0 
+          ? contactObj.categories 
+          : categories;
+        
+        // Use the updated contact for response with guaranteed categories
+        const transformedContact = transformContact({
+          ...contactObj,
+          categories: finalCategories
+        });
+        
+        // Log the transformed contact for debugging
+        console.log('Contact after transform:', JSON.stringify(transformedContact, null, 2));
+        
+        return res.status(201).json(transformedContact);
+      }
+
+      // If no categories, just return the original contact
+      const contactObj = contact.toObject();
+      
+      // Log the contact before transformation for debugging
+      console.log('Contact before transform:', JSON.stringify(contactObj, null, 2));
+
+      // Transform the contact
+      const transformedContact = transformContact(contactObj);
+
+      // Log the transformed contact for debugging
+      console.log('Contact after transform:', JSON.stringify(transformedContact, null, 2));
+
+      res.status(201).json(transformedContact);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: 'Validation error', errors: error.errors });
@@ -128,18 +219,59 @@ export class ContactController {
   // Update a contact
   static async updateContact(req: Request, res: Response) {
     try {
+      // Before parsing the data, log the raw request body
+      console.log('Raw update request body:', JSON.stringify(req.body, null, 2));
+      
       const validatedData = contactSchema.partial().parse(req.body);
+      
+      // Check if categories are explicitly provided
+      const hasCategories = Array.isArray(validatedData.categories);
+      
+      // Prepare update data with explicit handling of categories
+      const updateData = {
+        ...validatedData,
+        // Only include categories if they're explicitly provided
+        ...(hasCategories && {
+          // Map to ensure proper format
+          categories: validatedData.categories?.map(cat => ({
+            type: cat.type || 'all',
+            value: cat.value || ''
+          })),
+          // Update category field based on first category if present
+          category: validatedData.categories?.[0]?.value || validatedData.category || ''
+        })
+      };
+
+      // Log the update data for debugging
+      console.log('Updating contact with data:', JSON.stringify(updateData, null, 2));
+
+      // Use $set to properly update arrays and prevent empty array issues
       const contact = await Contact.findOneAndUpdate(
         { _id: req.params.id, userId: req.user._id },
-        validatedData,
-        { new: true }
+        { $set: updateData },
+        { 
+          new: true,
+          runValidators: true,
+          // Return the document as a plain object
+          lean: true,
+          // Ensure arrays are properly handled
+          strict: false
+        }
       );
 
       if (!contact) {
         return res.status(404).json({ message: 'Contact not found' });
       }
 
-      res.status(200).json(transformContact(contact));
+      // Log the contact before transformation for debugging
+      console.log('Contact before transform:', JSON.stringify(contact, null, 2));
+
+      const transformedContact = transformContact(contact);
+
+      // Log the transformed contact for debugging
+      console.log('Contact after transform:', JSON.stringify(transformedContact, null, 2));
+
+      res.status(200).json(transformedContact);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: 'Validation error', errors: error.errors });
